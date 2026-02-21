@@ -336,7 +336,7 @@ function RowDisplay({
           </Button>
         )}
       </div>
-      <div className="flex flex-wrap gap-2 justify-center">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center">
         {row.seats?.map((seat: any) => (
           <SeatButton
             key={seat.id}
@@ -373,7 +373,7 @@ function SeatButton({
         <button
           className={`
             relative flex flex-col items-center justify-center
-            w-14 h-14 rounded-lg border-2 text-xs font-medium transition-all
+            w-12 h-12 sm:w-14 sm:h-14 rounded-lg border-2 text-xs font-medium transition-all
             ${
               isAssigned
                 ? "bg-primary/15 border-primary/40 text-primary hover:bg-primary/25"

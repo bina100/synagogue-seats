@@ -103,9 +103,34 @@
 
   html {
     direction: rtl;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
     @apply bg-background text-foreground font-sans;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  /* Larger touch targets on mobile */
+  @media (max-width: 640px) {
+    button, a, [role="button"], input, select, textarea {
+      min-height: 44px;
+    }
+
+    input, textarea, select {
+      font-size: 16px !important; /* Prevents iOS zoom on focus */
+    }
+  }
+
+  /* Print styles for absence list */
+  @media print {
+    header, .no-print {
+      display: none !important;
+    }
+    body {
+      background: white !important;
+    }
   }
 }
