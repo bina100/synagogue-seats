@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import SynagogueManage from "./pages/SynagogueManage";
+import SeatingMap from "./pages/SeatingMap";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/synagogue/:id" element={<ProtectedRoute><SynagogueManage /></ProtectedRoute>} />
+            <Route path="/synagogue/:id/seating" element={<ProtectedRoute><SeatingMap /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
