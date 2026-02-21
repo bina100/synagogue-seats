@@ -123,6 +123,7 @@ export type Database = {
         Row: {
           assigned_to: string | null
           created_at: string
+          element_type: string | null
           id: string
           row_id: string
           seat_number: number
@@ -130,6 +131,7 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           created_at?: string
+          element_type?: string | null
           id?: string
           row_id: string
           seat_number: number
@@ -137,6 +139,7 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           created_at?: string
+          element_type?: string | null
           id?: string
           row_id?: string
           seat_number?: number
