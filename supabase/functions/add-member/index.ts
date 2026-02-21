@@ -62,7 +62,9 @@ serve(async (req) => {
       });
     }
 
-    const email = `${username.toLowerCase().replace(/\s/g, "_")}@synagogue.local`;
+    // Create a safe ASCII email - use only alphanumeric chars, fallback to random id
+    const safeUsername = username.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const email = `${safeUsername || crypto.randomUUID().slice(0, 8)}@synagogue.local`;
 
     // Check if user already exists
     const { data: existingProfile } = await supabaseAdmin
