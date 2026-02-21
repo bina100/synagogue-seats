@@ -47,7 +47,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-3 sm:p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center space-y-3">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
@@ -101,7 +101,7 @@ export default function Auth() {
               />
             </div>
 
-            <Button type="submit" className="w-full text-lg h-12" disabled={isLoading}>
+            <Button type="submit" className="w-full text-base sm:text-lg h-12" disabled={isLoading}>
               {isLoading ? "מעבד..." : isLogin ? "כניסה" : "הרשמה"}
             </Button>
           </form>

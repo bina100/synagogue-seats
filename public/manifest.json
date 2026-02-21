@@ -1,0 +1,19 @@
+{
+  "name": "ניהול מקומות ישיבה",
+  "short_name": "מקומות",
+  "description": "מערכת ניהול מקומות ישיבה לבתי כנסת",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8f6f2",
+  "theme_color": "#2563b0",
+  "dir": "rtl",
+  "lang": "he",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
