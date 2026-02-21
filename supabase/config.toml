@@ -1,1 +1,4 @@
 project_id = "ywtdvuaxvpqrhoazpqwx"
+
+[functions.import-seating-map]
+verify_jwt = false

@@ -1,0 +1,1 @@
+ALTER TABLE public.seats ADD COLUMN element_type text;
