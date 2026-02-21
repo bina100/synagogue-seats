@@ -1,0 +1,539 @@
+import { useState, useMemo } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import AppLayout from "@/components/AppLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Armchair,
+  CalendarOff,
+  UserMinus,
+  Printer,
+  CheckCircle2,
+  XCircle,
+  MinusCircle,
+} from "lucide-react";
+
+// Get next Shabbat date (upcoming Saturday)
+function getNextShabbat(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const daysUntilShabbat = day === 6 ? 0 : (6 - day + 7) % 7 || 7;
+  const shabbat = new Date(now);
+  shabbat.setDate(now.getDate() + daysUntilShabbat);
+  return shabbat.toISOString().split("T")[0];
+}
+
+function formatHebrewDate(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  return date.toLocaleDateString("he-IL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+export default function AbsenceManager() {
+  const { id: synagogueId } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedSectionId = searchParams.get("section");
+  const { isSuperAdmin, profile, roles } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [shabbatDate] = useState(getNextShabbat);
+  const [markForOtherOpen, setMarkForOtherOpen] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState("");
+
+  const isGabbai = isSuperAdmin || roles.some((r) => r.role === "gabbai" && r.synagogue_id === synagogueId);
+
+  // Fetch synagogue
+  const { data: synagogue } = useQuery({
+    queryKey: ["synagogue", synagogueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("synagogues")
+        .select("*")
+        .eq("id", synagogueId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!synagogueId,
+  });
+
+  // Fetch sections
+  const { data: sections } = useQuery({
+    queryKey: ["sections", synagogueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sections")
+        .select("*")
+        .eq("synagogue_id", synagogueId!)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!synagogueId,
+  });
+
+  // Fetch absences for this shabbat
+  const { data: absences } = useQuery({
+    queryKey: ["absences", synagogueId, shabbatDate],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("absences")
+        .select("*, profiles:profile_id(id, full_name, username)")
+        .eq("synagogue_id", synagogueId!)
+        .eq("shabbat_date", shabbatDate);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!synagogueId,
+  });
+
+  // Fetch members
+  const { data: members } = useQuery({
+    queryKey: ["members", synagogueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("synagogue_members")
+        .select("*, profiles:profile_id(id, full_name, username)")
+        .eq("synagogue_id", synagogueId!);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!synagogueId,
+  });
+
+  const absentProfileIds = useMemo(
+    () => new Set(absences?.map((a) => a.profile_id) || []),
+    [absences]
+  );
+
+  const myProfileId = profile?.id;
+  const iAmAbsent = myProfileId ? absentProfileIds.has(myProfileId) : false;
+
+  // Mark self absent
+  const markAbsentMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("absences").insert({
+        profile_id: myProfileId!,
+        synagogue_id: synagogueId!,
+        shabbat_date: shabbatDate,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
+      toast({ title: "סומנת כלא מגיע לשבת הקרובה" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    },
+  });
+
+  // Cancel absence
+  const cancelAbsenceMutation = useMutation({
+    mutationFn: async (profileId: string) => {
+      const { error } = await supabase
+        .from("absences")
+        .delete()
+        .eq("profile_id", profileId)
+        .eq("synagogue_id", synagogueId!)
+        .eq("shabbat_date", shabbatDate);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
+      toast({ title: "ההיעדרות בוטלה" });
+    },
+  });
+
+  // Mark absence for another member (gabbai)
+  const markOtherAbsentMutation = useMutation({
+    mutationFn: async (profileId: string) => {
+      const { error } = await supabase.from("absences").insert({
+        profile_id: profileId,
+        synagogue_id: synagogueId!,
+        shabbat_date: shabbatDate,
+        marked_by: myProfileId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
+      setMarkForOtherOpen(false);
+      setSelectedMemberId("");
+      toast({ title: "היעדרות סומנה בהצלחה" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const activeSectionId = selectedSectionId || sections?.[0]?.id;
+
+  // Print handler
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <AppLayout title={`היעדרויות - ${synagogue?.name || ""}`} showBack>
+      <div className="space-y-4">
+        {/* Shabbat info + personal action */}
+        <Card>
+          <CardContent className="py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-center sm:text-right">
+              <p className="text-sm text-muted-foreground">שבת קרובה</p>
+              <p className="font-semibold text-lg">{formatHebrewDate(shabbatDate)}</p>
+            </div>
+            <div className="flex gap-2">
+              {iAmAbsent ? (
+                <Button
+                  variant="outline"
+                  className="gap-2 border-success text-success"
+                  onClick={() => cancelAbsenceMutation.mutate(myProfileId!)}
+                  disabled={cancelAbsenceMutation.isPending}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  אני מגיע (בטל היעדרות)
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="gap-2 border-destructive text-destructive"
+                  onClick={() => markAbsentMutation.mutate()}
+                  disabled={markAbsentMutation.isPending}
+                >
+                  <CalendarOff className="h-4 w-4" />
+                  לא מגיע לשבת
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Gabbai controls */}
+        {isGabbai && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">פעולות גבאי</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => setMarkForOtherOpen(true)}
+              >
+                <UserMinus className="h-4 w-4" />
+                סמן היעדרות למתפלל
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2" onClick={handlePrint}>
+                <Printer className="h-4 w-4" />
+                הדפס מקומות פנויים
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Mark for other dialog */}
+        <Dialog open={markForOtherOpen} onOpenChange={setMarkForOtherOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>סמן היעדרות למתפלל</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="בחר מתפלל..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {members
+                    ?.filter((m) => !absentProfileIds.has((m.profiles as any)?.id))
+                    .map((m) => (
+                      <SelectItem key={(m.profiles as any)?.id} value={(m.profiles as any)?.id || ""}>
+                        {(m.profiles as any)?.full_name} ({(m.profiles as any)?.username})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <Button
+                className="w-full"
+                disabled={!selectedMemberId || markOtherAbsentMutation.isPending}
+                onClick={() => markOtherAbsentMutation.mutate(selectedMemberId)}
+              >
+                {markOtherAbsentMutation.isPending ? "מסמן..." : "סמן כלא מגיע"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Absence list */}
+        {isGabbai && absences && absences.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <XCircle className="h-4 w-4 text-destructive" />
+                נעדרים ({absences.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {absences.map((a) => (
+                  <Badge
+                    key={a.id}
+                    variant="secondary"
+                    className="gap-1 cursor-pointer hover:bg-destructive/10"
+                    onClick={() => {
+                      if (confirm(`לבטל היעדרות של ${(a.profiles as any)?.full_name}?`)) {
+                        cancelAbsenceMutation.mutate(a.profile_id);
+                      }
+                    }}
+                  >
+                    {(a.profiles as any)?.full_name}
+                    <XCircle className="h-3 w-3" />
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Section tabs */}
+        {sections && sections.length > 0 && (
+          <>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {sections.map((s) => (
+                <Button
+                  key={s.id}
+                  variant={activeSectionId === s.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSearchParams({ section: s.id })}
+                >
+                  {s.name}
+                </Button>
+              ))}
+            </div>
+
+            {activeSectionId && (
+              <AbsenceSeatingMap
+                sectionId={activeSectionId}
+                synagogueId={synagogueId!}
+                absentProfileIds={absentProfileIds}
+              />
+            )}
+          </>
+        )}
+
+        {/* Legend */}
+        <div className="flex gap-4 text-xs text-muted-foreground justify-center print:text-black">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded bg-destructive/20 border border-destructive/40" />
+            תפוס
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded bg-success/20 border border-success/40" />
+            פנוי (נעדר)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded bg-muted border border-border" />
+            לא שויך
+          </span>
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
+
+// ============ Absence Seating Map (read-only colorful view) ============
+function AbsenceSeatingMap({
+  sectionId,
+  synagogueId,
+  absentProfileIds,
+}: {
+  sectionId: string;
+  synagogueId: string;
+  absentProfileIds: Set<string>;
+}) {
+  const [selectedSeat, setSelectedSeat] = useState<any>(null);
+
+  // Fetch rows with seats
+  const { data: rows, isLoading } = useQuery({
+    queryKey: ["seat_rows", sectionId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("seat_rows")
+        .select("*, seats(*, profiles:assigned_to(id, full_name, username))")
+        .eq("section_id", sectionId)
+        .order("row_number");
+      if (error) throw error;
+      return data?.map((row) => ({
+        ...row,
+        seats: (row.seats as any[])?.sort(
+          (a: any, b: any) => a.seat_number - b.seat_number
+        ),
+      }));
+    },
+  });
+
+  // Stats
+  const stats = useMemo(() => {
+    if (!rows) return { total: 0, occupied: 0, available: 0, unassigned: 0 };
+    let total = 0, occupied = 0, available = 0, unassigned = 0;
+    rows.forEach((row) => {
+      row.seats?.forEach((seat: any) => {
+        total++;
+        if (!seat.assigned_to) {
+          unassigned++;
+        } else if (absentProfileIds.has(seat.assigned_to)) {
+          available++;
+        } else {
+          occupied++;
+        }
+      });
+    });
+    return { total, occupied, available, unassigned };
+  }, [rows, absentProfileIds]);
+
+  if (isLoading) {
+    return <p className="text-muted-foreground text-center py-4">טוען...</p>;
+  }
+
+  if (!rows?.length) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center">
+          <Armchair className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+          <p className="text-muted-foreground">אין שורות במחלקה זו</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">מפת מקומות</CardTitle>
+        <div className="flex gap-3 text-sm print:text-black">
+          <span className="text-destructive font-medium">{stats.occupied} תפוסים</span>
+          <span className="text-success font-medium">{stats.available} פנויים</span>
+          <span className="text-muted-foreground">{stats.unassigned} לא שויכו</span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {rows.map((row) => (
+          <div key={row.id} className="space-y-1">
+            <span className="text-xs text-muted-foreground">שורה {row.row_number}</span>
+            <div className="flex flex-wrap gap-1.5 justify-center">
+              {row.seats?.map((seat: any) => {
+                const isAssigned = !!seat.assigned_to;
+                const isAbsent = isAssigned && absentProfileIds.has(seat.assigned_to);
+                const assignedName = seat.profiles?.full_name;
+
+                let bgClass: string;
+                let borderClass: string;
+                let textClass: string;
+
+                if (!isAssigned) {
+                  bgClass = "bg-muted/50";
+                  borderClass = "border-border";
+                  textClass = "text-muted-foreground";
+                } else if (isAbsent) {
+                  bgClass = "bg-success/15";
+                  borderClass = "border-success/40";
+                  textClass = "text-success";
+                } else {
+                  bgClass = "bg-destructive/15";
+                  borderClass = "border-destructive/40";
+                  textClass = "text-destructive";
+                }
+
+                return (
+                  <button
+                    key={seat.id}
+                    className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-lg border-2 text-xs font-medium transition-all ${bgClass} ${borderClass} ${textClass} hover:opacity-80`}
+                    onClick={() => setSelectedSeat(seat)}
+                  >
+                    <Armchair className="h-4 w-4 mb-0.5" />
+                    <span className="text-[10px] leading-tight truncate max-w-[48px]">
+                      {isAssigned
+                        ? assignedName?.split(" ")[0] || "תפוס"
+                        : seat.seat_number}
+                    </span>
+                    {isAbsent && (
+                      <span className="absolute -top-1 -left-1 h-3 w-3 rounded-full bg-success flex items-center justify-center">
+                        <CheckCircle2 className="h-2.5 w-2.5 text-success-foreground" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* Seat detail dialog */}
+        <Dialog open={!!selectedSeat} onOpenChange={() => setSelectedSeat(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>פרטי מקום</DialogTitle>
+            </DialogHeader>
+            {selectedSeat && (
+              <div className="space-y-2 text-sm">
+                <p>
+                  <strong>מקום:</strong> {selectedSeat.seat_number}
+                </p>
+                {selectedSeat.profiles ? (
+                  <>
+                    <p>
+                      <strong>משויך ל:</strong> {selectedSeat.profiles.full_name}
+                    </p>
+                    <p>
+                      <strong>סטטוס:</strong>{" "}
+                      {absentProfileIds.has(selectedSeat.assigned_to) ? (
+                        <Badge variant="outline" className="bg-success/10 text-success border-success/30">
+                          <CheckCircle2 className="h-3 w-3 ml-1" />
+                          פנוי (נעדר)
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+                          <XCircle className="h-3 w-3 ml-1" />
+                          תפוס
+                        </Badge>
+                      )}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">
+                    <MinusCircle className="h-3 w-3 inline ml-1" />
+                    לא שויך למתפלל
+                  </p>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
+}

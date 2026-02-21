@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, UserPlus, Users, LayoutGrid, Trash2, Shield, User, Armchair } from "lucide-react";
+import { Plus, UserPlus, Users, LayoutGrid, Trash2, Shield, User, Armchair, CalendarOff } from "lucide-react";
 
 export default function SynagogueManage() {
   const { id } = useParams<{ id: string }>();
@@ -45,11 +45,17 @@ export default function SynagogueManage() {
 
   return (
     <AppLayout title={synagogue?.name || "בית כנסת"} showBack>
-      <div className="mb-4">
-        <Link to={`/synagogue/${id}/seating`}>
+      <div className="mb-4 flex flex-col sm:flex-row gap-2">
+        <Link to={`/synagogue/${id}/seating`} className="flex-1">
           <Button className="w-full gap-2" variant="outline" size="lg">
             <Armchair className="h-5 w-5" />
             מפת מקומות ישיבה
+          </Button>
+        </Link>
+        <Link to={`/synagogue/${id}/absences`} className="flex-1">
+          <Button className="w-full gap-2" variant="outline" size="lg">
+            <CalendarOff className="h-5 w-5" />
+            היעדרויות ולוח בקרה
           </Button>
         </Link>
       </div>
