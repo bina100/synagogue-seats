@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, UserPlus, Users, LayoutGrid, Trash2, Shield, User } from "lucide-react";
+import { Plus, UserPlus, Users, LayoutGrid, Trash2, Shield, User, Armchair } from "lucide-react";
 
 export default function SynagogueManage() {
   const { id } = useParams<{ id: string }>();
@@ -45,6 +45,14 @@ export default function SynagogueManage() {
 
   return (
     <AppLayout title={synagogue?.name || "בית כנסת"} showBack>
+      <div className="mb-4">
+        <Link to={`/synagogue/${id}/seating`}>
+          <Button className="w-full gap-2" variant="outline" size="lg">
+            <Armchair className="h-5 w-5" />
+            מפת מקומות ישיבה
+          </Button>
+        </Link>
+      </div>
       <Tabs defaultValue="members" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="members" className="gap-2">
