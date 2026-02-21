@@ -1,0 +1,112 @@
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import type { User, Session } from "@supabase/supabase-js";
+
+interface Profile {
+  id: string;
+  username: string;
+  full_name: string;
+}
+
+interface AuthContextType {
+  user: User | null;
+  session: Session | null;
+  profile: Profile | null;
+  roles: Array<{ role: string; synagogue_id: string | null }>;
+  loading: boolean;
+  signUp: (username: string, password: string, fullName: string) => Promise<{ error: string | null }>;
+  signIn: (username: string, password: string) => Promise<{ error: string | null }>;
+  signOut: () => Promise<void>;
+  isSuperAdmin: boolean;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [roles, setRoles] = useState<Array<{ role: string; synagogue_id: string | null }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProfile = async (authId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, username, full_name")
+      .eq("auth_id", authId)
+      .single();
+    if (data) {
+      setProfile(data);
+      const { data: rolesData } = await supabase
+        .from("user_roles")
+        .select("role, synagogue_id")
+        .eq("user_id", data.id);
+      setRoles(rolesData || []);
+    }
+  };
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          setTimeout(() => fetchProfile(session.user.id), 0);
+        } else {
+          setProfile(null);
+          setRoles([]);
+        }
+        setLoading(false);
+      }
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signUp = async (username: string, password: string, fullName: string) => {
+    const email = `${username.toLowerCase().replace(/\s/g, "_")}@synagogue.local`;
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { username, full_name: fullName } },
+    });
+    if (error) return { error: error.message };
+    return { error: null };
+  };
+
+  const signIn = async (username: string, password: string) => {
+    const email = `${username.toLowerCase().replace(/\s/g, "_")}@synagogue.local`;
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
+    return { error: null };
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
+
+  const isSuperAdmin = roles.some((r) => r.role === "super_admin" && !r.synagogue_id);
+
+  return (
+    <AuthContext.Provider
+      value={{ user, session, profile, roles, loading, signUp, signIn, signOut, isSuperAdmin }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  return context;
+}
