@@ -123,6 +123,17 @@ Deno.serve(async (req: Request) => {
 
       if (existingRows?.length) {
         const rowIds = existingRows.map((r: any) => r.id);
+
+        // Delete absences referencing these seats before deleting seats
+        const { data: existingSeats } = await supabaseAdmin
+          .from("seats")
+          .select("id")
+          .in("row_id", rowIds);
+        if (existingSeats?.length) {
+          const seatIds = existingSeats.map((s: any) => s.id);
+          await supabaseAdmin.from("absences").delete().in("seat_id", seatIds);
+        }
+
         await supabaseAdmin.from("seats").delete().in("row_id", rowIds);
         await supabaseAdmin.from("seat_rows").delete().in("section_id", sectionIds);
       }

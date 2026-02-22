@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Armchair, UserPlus, X } from "lucide-react";
+import { Armchair, UserPlus, X, CalendarOff, CheckCircle2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,9 +27,11 @@ interface SeatCellProps {
   currentUserProfileId?: string;
   isAbsent?: boolean;
   onToggleAbsence?: () => void;
+  isAbsentForGabbai?: boolean;
+  onToggleGabbaiAbsence?: () => void;
 }
 
-export default function SeatCell({ seat, members, canManage, onAssign, currentUserProfileId, isAbsent, onToggleAbsence }: SeatCellProps) {
+export default function SeatCell({ seat, members, canManage, onAssign, currentUserProfileId, isAbsent, onToggleAbsence, isAbsentForGabbai, onToggleGabbaiAbsence }: SeatCellProps) {
   const [open, setOpen] = useState(false);
 
   // Empty cell = invisible spacer for grid alignment
@@ -126,6 +128,23 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
                 </SelectContent>
               </Select>
             </div>
+            {/* Shabbat Absence section (only for assigned seats) */}
+            {isAssigned && (
+              <div className="space-y-2 border-t pt-3">
+                <Label>היעדרות לשבת</Label>
+                {isAbsentForGabbai ? (
+                  <Button variant="outline" className="w-full gap-2 border-green-500 text-green-600"
+                    onClick={() => { onToggleGabbaiAbsence?.(); setOpen(false); }}>
+                    <CheckCircle2 className="h-4 w-4" /> בטל היעדרות למקום זה
+                  </Button>
+                ) : (
+                  <Button variant="outline" className="w-full gap-2 border-destructive text-destructive"
+                    onClick={() => { onToggleGabbaiAbsence?.(); setOpen(false); }}>
+                    <CalendarOff className="h-4 w-4" /> סמן כפנוי לשבת
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </DialogContent>
       )}
