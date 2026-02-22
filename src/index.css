@@ -156,7 +156,26 @@
     }
 
     .print-only {
-      display: block !important;
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      gap: 20px !important;
+      justify-content: center !important;
+      width: 100% !important;
+      overflow: visible !important;
+      zoom: 0.7;
+    }
+
+    .print-only *,
+    .print-only section,
+    .print-only .print-map-container {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+    }
+
+    .print-only * {
+      break-before: auto !important;
+      break-after: auto !important;
     }
 
     /* Scale seats for print */

@@ -437,7 +437,7 @@ export default function AbsenceManager() {
             </div>
 
             {/* Print: show ALL sections */}
-            <div className="print-only">
+            <div className="print-only" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '20px', justifyContent: 'center' }}>
               {sections.map((s) => (
                 <div key={s.id} className="print-map-container">
                   <div className="print-section-title">{s.name}</div>
