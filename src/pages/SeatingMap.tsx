@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download } from "lucide-react";
+import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download, Printer } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SeatCell from "@/components/seating/SeatCell";
 import StructuralElement from "@/components/seating/StructuralElement";
@@ -341,7 +341,11 @@ export default function SeatingMap() {
       <div className="space-y-4">
         {/* Actions bar */}
         {canManage && (
-          <div className="flex gap-2 justify-end">
+          <div className="flex gap-2 justify-end no-print">
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+              <Printer className="h-4 w-4" />
+              הדפסה
+            </Button>
             <Dialog open={importOpen} onOpenChange={(o) => { setImportOpen(o); if (!o) setParsedData(null); }}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2">
@@ -416,7 +420,7 @@ export default function SeatingMap() {
             </CardContent>
           </Card>
         ) : (
-          <Card>
+          <Card className="print-floor-plan">
             <CardContent className="p-3 sm:p-4">
               {/* Legend */}
               <div className="flex gap-4 text-xs text-muted-foreground justify-center pb-3 mb-3 border-b flex-wrap">
@@ -517,6 +521,13 @@ export default function SeatingMap() {
             </CardContent>
           </Card>
         )}
+
+        {/* Print-only title banner */}
+        <div className="print-header">
+          <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>
+            מפת מקומות - {synagogue?.name || ""}
+          </h1>
+        </div>
       </div>
 
       {/* Import Results Dialog */}
