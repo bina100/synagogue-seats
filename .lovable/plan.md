@@ -1,80 +1,78 @@
 
+# Phase 3: ייבוא אקסל + יצירת משתמשים אוטומטית + כפיית שינוי סיסמה
 
-# מפת מקומות בסגנון מבנה בית הכנסת
+## סקירה
 
-## מה ישתנה
+שדרוג מלא של תהליך ייבוא האקסל: כל שם שלא קיים במערכת ייצור אוטומטית חשבון משתמש עם סיסמת ברירת מחדל, ובכניסה הראשונה המשתמש יידרש לשנות סיסמה.
 
-במקום תצוגה של מחלקה אחת בכל פעם (עם כפתורי טאבים), המפה תציג את **כל בית הכנסת** בתצוגה אחת -- כל 7 הטורים זה לצד זה, עם אלמנטים מבניים כמו ארון קודש, בימה ועמודים מוצגים ויזואלית במיקום הנכון שלהם.
+## שינויים
 
-## עיצוב התצוגה
+### 1. Migration -- הוספת עמודה `requires_password_change` לטבלת `profiles`
+
+```sql
+ALTER TABLE profiles ADD COLUMN requires_password_change boolean NOT NULL DEFAULT false;
+```
+
+### 2. שכתוב Edge Function `import-seating-map`
+
+הלוגיקה המעודכנת לכל שם שלא נמצא ב-profiles:
 
 ```text
-+------------------------------------------------------------------+
-|                         ארון קודש                                 |
-+------------------------------------------------------------------+
-|                                                                    |
-| טור 7  | טור 6  |  עמוד  | טור 5  | טור 4  | טור 3  | טור 2  | טור 1 |
-| [שם]   | [שם]   |   ||   | [שם]   | [שם]   | [שם]   | [שם]   | [שם]  |
-| [שם]   | [שם]   |   ||   | [שם]   | [שם]   | [שם]   | [שם]   | [שם]  |
-|        |        |        |        |        |        |        |       |
-|                           בימה                                     |
-|        |        |        |        |        |        |        |       |
-| [שם]   | [שם]   |   ||   | [שם]   | [שם]   | [שם]   | [שם]   | [שם]  |
-+------------------------------------------------------------------+
+1. cleanedName = cellValue.trim().replace(/\s+/g, " ")
+2. email = cleanedName.replace(/\s/g, "_") + "@synagogue.local"
+   (זהה בדיוק לפרונט-אנד -- תומך בעברית)
+3. password = "123456"
+4. admin.createUser({ email, password, email_confirm: true, user_metadata: { username: cleanedName, full_name: cleanedName } })
+5. מיד אחרי -- INSERT ישיר ל-profiles:
+   INSERT INTO profiles (auth_id, username, full_name, requires_password_change)
+   VALUES (authData.user.id, cleanedName, cleanedName, true)
+   ON CONFLICT (auth_id) DO UPDATE SET requires_password_change = true
+6. קבלת profile.id מתוצאת ה-upsert
+7. upsert ל-synagogue_members
+8. upsert ל-user_roles (role: member)
+9. שיוך ל-seat
 ```
 
-- **ארון קודש**: מלבן מעוצב בחלק העליון של המפה
-- **בימה**: מלבן מרכזי באמצע המפה (בשורה 5 לפי הקובץ)
-- **עמודים**: אייקונים עגולים קטנים במיקומם הנכון (בין טור 2 לטור 3, ובין טור 6 לטור 7)
-- **מקומות ישיבה**: כפתורים קטנים עם שם המתפלל, צבועים לפי תפוס/פנוי
-- **מעבר (Aisle)**: רווח ריק בין הטורים
-
-## מה ייבנה
-
-### 1. תצוגת מפה מלאה (Full Map View)
-- במקום טאבים של מחלקה אחת, כל הטורים מוצגים יחד בתצוגת גריד
-- גלילה אופקית במובייל כדי לראות את כל המפה
-- זום in/out עם כפתורי +/- או pinch-to-zoom
-
-### 2. אלמנטים מבניים ויזואליים
-- רכיב `AronKodesh` -- מלבן מעוצב עם אייקון בחלק העליון
-- רכיב `Bima` -- מלבן מרכזי מעוצב עם אייקון באמצע המפה
-- רכיב `Amud` (עמוד) -- עיגול קטן מעוצב שמופיע בתוך הגריד
-
-### 3. ייבוא מאקסל עם אלמנטים מבניים
-- הפרסור יזהה את האלמנטים: "ארון קודש", "בימה", "עמוד", "חתן"
-- במקום להתעלם מהם, ישמור אותם כ-metadata ויציב אותם ויזואלית
-
-### 4. שמירת מיקום אלמנטים בDB
-- הוספת עמודה `element_type` לטבלת `seats` (nullable) עם ערכים: `aron_kodesh`, `bima`, `amud`, `chatan`
-- תא עם `element_type` לא יהיה מקום ישיבה אלא אלמנט מבני
-
-## פרטים טכניים
-
-### שינוי בסיס נתונים
-הוספת עמודה `element_type` בטבלת `seats`:
-```sql
-ALTER TABLE seats ADD COLUMN element_type text;
--- ערכים אפשריים: 'aron_kodesh', 'bima', 'amud', null (מקום רגיל)
+ה-stats יחזיר:
+```text
+{
+  sections, rows, seats, matched,
+  createdUsers: [{ fullName, username, password }],
+  failed: [{ name, error }]
+}
 ```
 
-### קבצים שישתנו
-- **`src/pages/SeatingMap.tsx`** -- שכתוב מהותי של התצוגה: במקום מחלקה-מחלקה, תצוגת מפה מלאה עם כל הטורים + אלמנטים מבניים, גלילה אופקית, ורכיבי ארון קודש/בימה/עמוד
-- **`supabase/functions/import-seating-map/index.ts`** -- Edge Function חדשה לייבוא מאקסל, כולל שמירת אלמנטים מבניים
-- **`package.json`** -- הוספת ספריית `xlsx`
-- **Migration SQL** -- הוספת עמודת `element_type`
+### 3. עדכון `src/pages/SeatingMap.tsx`
 
-### לוגיקת פרסור האקסל
-- קריאת גיליון 3 (המפה העדכנית)
-- זיהוי גבולות הטורים לפי שורת הכותרת
-- לכל תא:
-  - אם מכיל "ארון קודש" / "בימה" / "עמוד" --> שמור כ-element_type
-  - אם מכיל שם מתפלל --> שמור כמקום ישיבה עם assigned_to
-  - אם ריק --> מקום פנוי
+לאחר ייבוא מוצלח:
+- אם `stats.createdUsers.length > 0`, הצגת דיאלוג עם טבלה: שם מלא | שם משתמש | סיסמה
+- כפתור "הורד CSV" שמייצר קובץ עם הפרטים להפצה
 
-### רכיבי UI חדשים
-- `SynagogueFloorMap` -- רכיב ראשי שמציג את כל המפה
-- `StructuralElement` -- רכיב לתצוגת ארון קודש / בימה / עמוד
-- `SectionColumn` -- עמודת טור עם שורות מקומות
-- כפתור "ייבוא מאקסל" בדף המפה
+### 4. רכיב חדש `src/components/ForcePasswordChange.tsx`
 
+- מודאל שלא ניתן לסגור (ללא X, ללא סגירה בלחיצה בחוץ)
+- שדות: סיסמה חדשה + אישור סיסמה
+- בלחיצה על "שמור":
+  1. `supabase.auth.updateUser({ password: newPassword })`
+  2. עדכון `profiles.requires_password_change = false`
+
+### 5. עדכון `src/hooks/useAuth.tsx`
+
+- הוספת `requires_password_change: boolean` ל-interface `Profile`
+- שליפת השדה ב-`fetchProfile`
+
+### 6. עדכון `src/components/AppLayout.tsx`
+
+- import של `ForcePasswordChange`
+- הצגת המודאל כאשר `profile?.requires_password_change === true`
+
+## קבצים
+
+| קובץ | פעולה |
+|---|---|
+| Migration SQL | הוספת `requires_password_change` |
+| `supabase/functions/import-seating-map/index.ts` | שכתוב מלא עם יצירת משתמשים מיידית |
+| `src/pages/SeatingMap.tsx` | דיאלוג תוצאות ייבוא + הורדת CSV |
+| `src/components/ForcePasswordChange.tsx` | רכיב חדש |
+| `src/hooks/useAuth.tsx` | הוספת שדה לפרופיל |
+| `src/components/AppLayout.tsx` | שילוב מודאל כפיית סיסמה |
