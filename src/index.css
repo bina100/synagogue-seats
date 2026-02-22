@@ -161,50 +161,63 @@
       flex-wrap: wrap !important;
       gap: 20px !important;
       justify-content: center !important;
-      width: 100% !important;
+      width: 100vw !important;
       overflow: visible !important;
-      zoom: 0.7;
+      zoom: 0.55;
     }
 
-    .print-only *,
-    .print-only section,
+    /* Each section block must not split */
     .print-only .print-map-container {
       break-inside: avoid !important;
       page-break-inside: avoid !important;
+      break-before: auto !important;
+      break-after: auto !important;
+      flex-shrink: 0;
     }
 
+    /* Remove all forced breaks from children */
     .print-only * {
       break-before: auto !important;
       break-after: auto !important;
     }
 
-    /* Scale seats for print */
+    /* Card inside print should be borderless and compact */
+    .print-only .print-map-container > div {
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+    }
+
+    /* Rows must stay horizontal */
+    .print-only .print-seat-row {
+      flex-wrap: nowrap !important;
+      gap: 2px !important;
+    }
+
+    /* Compact seats for print */
     .print-seat {
-      width: 44px !important;
-      height: 44px !important;
-      font-size: 8px !important;
+      width: 40px !important;
+      height: 40px !important;
+      font-size: 7px !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
 
-    .print-map-container {
-      display: flex !important;
-      flex-wrap: wrap !important;
-      flex-direction: row !important;
-      gap: 20px !important;
-      justify-content: center !important;
-      width: 100% !important;
-      overflow: visible !important;
-      page-break-inside: avoid;
+    /* Hide section title if only one section */
+    .print-only .print-map-container:only-child .print-section-title {
+      display: none !important;
     }
 
+    /* Section titles should not force page breaks */
     .print-section-title {
-      font-size: 14px;
+      page-break-before: auto !important;
+      page-break-after: auto !important;
+      font-size: 12px;
       font-weight: bold;
       text-align: center;
-      margin: 8px 0 4px;
+      margin: 4px 0;
       border-bottom: 1px solid #ccc;
-      padding-bottom: 4px;
+      padding-bottom: 2px;
     }
   }
 }
