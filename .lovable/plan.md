@@ -1,110 +1,116 @@
 
 
-# Print Full Map Feature for AbsenceManager
+# Fix "Mark for Other" Mutation + Perfect Print Map
 
-## Overview
+## Issue 1: markOtherAbsentMutation missing seat_id
 
-Add a print-optimized view that renders the entire seating map on a single A4 page with a header, scaled-down seats, and preserved colors.
+**Problem**: When the Gabbai uses the dropdown to mark a member absent (lines 205-224), the mutation inserts into `absences` without a `seat_id`. Since `absentSeatIds` (used for the red dot) checks by `seat_id`, no red icon appears on the map.
 
-## Changes
+**Fix**: Change `markOtherAbsentMutation` to:
+1. First query `seats` table for all seats where `assigned_to = profileId` within the current synagogue (join through `seat_rows` -> `sections`).
+2. Insert one `absences` row per seat found, each with its specific `seat_id`.
 
-### 1. Update `src/index.css` - Add print-specific CSS
+**File: `src/pages/AbsenceManager.tsx`** (lines 205-224)
 
-Add comprehensive `@media print` styles that:
-- Hide header, navigation, buttons, cards (non-map elements) using `.no-print` class
-- Force the map to fit A4 width using `transform: scale()` approach or `width: 100%` with smaller seat sizes
-- Preserve colors with `print-color-adjust: exact; -webkit-print-color-adjust: exact`
-- Show a print-only header div (`.print-header`) that is hidden on screen
-- Make seats smaller (e.g., 40x40px) with slightly larger font (9px) for legibility on paper
-- Remove all padding/margins from container to maximize space
+Replace the mutation function with:
 
-### 2. Update `src/pages/AbsenceManager.tsx`
+```typescript
+const markOtherAbsentMutation = useMutation({
+  mutationFn: async (profileId: string) => {
+    // Find all seats assigned to this profile in this synagogue
+    const { data: seatRows } = await supabase
+      .from("seat_rows")
+      .select("id, sections!inner(synagogue_id)")
+      .eq("sections.synagogue_id", synagogueId!);
 
-**Print header**: Add a hidden-on-screen div at the top of the page with class `print-header` that shows:
-- "לוח היעדרויות ושיבוץ אורחים"
-- Synagogue name (`synagogue?.name`)
-- Shabbat date (`formatHebrewDate(shabbatDate)`)
+    const rowIds = seatRows?.map((r: any) => r.id) || [];
 
-**Print button**: Already exists (line 306-309). Keep it as-is calling `window.print()`.
+    const { data: seats } = await supabase
+      .from("seats")
+      .select("id")
+      .in("row_id", rowIds)
+      .eq("assigned_to", profileId);
 
-**Mark non-map elements as `no-print`**: Add `no-print` class to:
-- The Shabbat info card (personal action)
-- The holidays card
-- The Gabbai controls card
-- The mark-for-other dialog
-- The absence list card
-- The section tab buttons
-- The legend (or keep it visible for reference)
+    if (!seats || seats.length === 0) {
+      // Fallback: insert without seat_id (member has no assigned seats)
+      const { error } = await supabase.from("absences").insert({
+        profile_id: profileId,
+        synagogue_id: synagogueId!,
+        shabbat_date: shabbatDate,
+        marked_by: myProfileId,
+      });
+      if (error) throw error;
+      return;
+    }
 
-**Show ALL sections in print**: Currently only one section is shown at a time. For print, render ALL sections (loop through `sections` array) so the full map prints. Use a separate div with class `print-only` (hidden on screen, shown on print) that renders `AbsenceSeatingMap` for each section with a section title.
+    // Insert one absence per seat
+    const rows = seats.map((s: any) => ({
+      profile_id: profileId,
+      synagogue_id: synagogueId!,
+      shabbat_date: shabbatDate,
+      marked_by: myProfileId,
+      seat_id: s.id,
+    }));
+    const { error } = await supabase.from("absences").insert(rows);
+    if (error) throw error;
+  },
+  // ... onSuccess/onError unchanged
+});
+```
 
-### 3. Update `AbsenceSeatingMap` component
+## Issue 2: Perfect Print Map (mirror of interactive map, no extras)
 
-Add `print-color-adjust: exact` inline or via class to seat buttons so colors survive printing. Add a `sectionName` prop to display section headers in print view.
+**Problem**: The print view currently shows "Row X" labels, stats bar ("X occupied, Y available"), Card headers, and legend text. The user wants ONLY the seat grid with names and absence indicators.
 
-## Technical Details
+### Changes to `src/index.css` (print section):
 
-### Print CSS additions to `src/index.css`:
+Add rules to hide extra text in print:
+- Hide the Card header/title and stats line: `.print-map-container .card-header, .print-map-container [class*="CardHeader"]`
+- Hide row labels: target the "שורה X" spans
+- Hide the legend div
+- Add auto-scaling with `transform: scale()` and `transform-origin: top center`
 
 ```css
 @media print {
-  /* Hide everything not needed */
-  header, .no-print, [role="dialog"] {
+  /* existing rules... */
+
+  /* Hide stats, row labels, card headers in print */
+  .print-map-container > div > div > .space-y-1 > .text-xs.text-muted-foreground {
     display: none !important;
   }
-  
-  body {
-    background: white !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+
+  /* Hide card header (stats bar) */
+  .print-only .print-map-container [data-print-hide] {
+    display: none !important;
   }
-  
-  .print-header {
-    display: block !important;
-    text-align: center;
-    margin-bottom: 12px;
-    border-bottom: 2px solid #333;
-    padding-bottom: 8px;
-  }
-  
+
+  /* Scale map to fit A4 */
   .print-only {
-    display: block !important;
-  }
-  
-  /* Scale seats for print */
-  .print-seat {
-    width: 44px !important;
-    height: 44px !important;
-    font-size: 7px !important;
-  }
-  
-  /* Ensure map fits A4 width */
-  .print-map-container {
-    width: 100% !important;
-    overflow: visible !important;
+    width: 100%;
+    transform-origin: top center;
   }
 }
 ```
 
-### Screen-only hiding:
+A cleaner approach: add `data-print-hide` attributes or `no-print` class to the stats and row labels inside `AbsenceSeatingMap`, and hide the legend in print.
 
-```css
-.print-header, .print-only {
-  display: none;
-}
-```
+### Changes to `src/pages/AbsenceManager.tsx`:
 
-### AbsenceManager changes:
+1. **Stats bar** (line 562-568): Wrap in `no-print` class.
+2. **Card header** (line 562-568): Add `no-print` to the CardHeader containing "מפת מקומות" and stats.
+3. **Row labels** (line 573): Add `no-print` to the "שורה X" span.
+4. **Legend** (lines 431-444): Add `no-print` class.
+5. **Card wrapper in AbsenceSeatingMap**: Remove Card/CardHeader/CardContent wrapping in print -- simplest approach is to add `no-print` to CardHeader and keep CardContent as-is.
 
-- Add `print-header` div before the main content with synagogue name and date
-- Add `no-print` class to all control cards
-- Add a `print-only` div that loops through ALL sections and renders each `AbsenceSeatingMap`
-- Keep the interactive single-section view as-is for screen
+Specific line changes:
+- Line 431: Change `<div className="flex gap-4 ...">` to add `no-print`
+- Line 562-568: Add `className="no-print"` to the CardHeader
+- Line 573: Add `no-print` class to row label span
 
 ## Files to Change
 
 | File | Change |
 |---|---|
-| `src/index.css` | Add print media styles, print-header/print-only classes |
-| `src/pages/AbsenceManager.tsx` | Add print header, mark controls as no-print, render all sections for print |
+| `src/pages/AbsenceManager.tsx` | Fix `markOtherAbsentMutation` to fetch seats and include `seat_id`; add `no-print` to stats header, row labels, and legend |
+| `src/index.css` | No additional changes needed (existing print rules sufficient once `no-print` is applied correctly) |
 
