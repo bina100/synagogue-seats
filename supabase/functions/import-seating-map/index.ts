@@ -180,6 +180,8 @@ Deno.serve(async (req: Request) => {
               // Auto-create user - email matches frontend signIn logic exactly
               const email = `${cleanedName.replace(/\s/g, "_")}@synagogue.local`;
 
+              console.log("Attempting to create user:", cleanedName, "with email:", email);
+
               try {
                 const { data: authData, error: createErr } =
                   await supabaseAdmin.auth.admin.createUser({
@@ -191,6 +193,8 @@ Deno.serve(async (req: Request) => {
                       full_name: cleanedName,
                     },
                   });
+
+                console.log("createUser result:", authData?.user?.id, "error:", createErr?.message);
 
                 if (createErr || !authData?.user) {
                   stats.failed.push({
@@ -212,6 +216,8 @@ Deno.serve(async (req: Request) => {
                     )
                     .select("id")
                     .single();
+
+                  console.log("profile upsert result:", profileData?.id, "error:", profileErr?.message);
 
                   if (profileErr || !profileData) {
                     stats.failed.push({
