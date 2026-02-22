@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -114,6 +114,21 @@ export default function SeatingMap() {
 
   const absentSeatIds = new Set((myAbsences ?? []).map(a => a.seat_id).filter(Boolean));
 
+  // Fetch ALL absences for this synagogue (gabbai view)
+  const { data: allAbsences } = useQuery({
+    queryKey: ["absences", synagogueId, nextShabbat],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("absences")
+        .select("id, seat_id, profile_id")
+        .eq("synagogue_id", synagogueId!)
+        .eq("shabbat_date", nextShabbat);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!synagogueId && canManage,
+  });
+  const allAbsentSeatIds = useMemo(() => new Set((allAbsences ?? []).map(a => a.seat_id).filter(Boolean)), [allAbsences]);
   // Assign mutation
   const assignMutation = useMutation({
     mutationFn: async ({ seatId, profileId }: { seatId: string; profileId: string | null }) => {
@@ -141,6 +156,7 @@ export default function SeatingMap() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my_absences", synagogueId] });
+      queryClient.invalidateQueries({ queryKey: ["absences"] });
       toast({ title: "היעדרות דווחה בהצלחה" });
     },
     onError: (e: Error) => {
@@ -162,6 +178,7 @@ export default function SeatingMap() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my_absences", synagogueId] });
+      queryClient.invalidateQueries({ queryKey: ["absences"] });
       toast({ title: "ההיעדרות בוטלה בהצלחה" });
     },
     onError: (e: Error) => {
@@ -184,6 +201,47 @@ export default function SeatingMap() {
     }
   }, [absentSeatIds, deleteAbsenceMutation, insertAbsenceMutation]);
 
+  // Gabbai absence mutations
+  const markGabbaiAbsenceMutation = useMutation({
+    mutationFn: async ({ seatId, profileId }: { seatId: string; profileId: string }) => {
+      const { error } = await supabase.from("absences").insert({
+        profile_id: profileId,
+        synagogue_id: synagogueId!,
+        shabbat_date: nextShabbat,
+        seat_id: seatId,
+        marked_by: profile!.id,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absences"] });
+      queryClient.invalidateQueries({ queryKey: ["my_absences", synagogueId] });
+      toast({ title: "סטטוס המקום עודכן" });
+    },
+  });
+
+  const cancelGabbaiAbsenceMutation = useMutation({
+    mutationFn: async ({ seatId }: { seatId: string; profileId: string }) => {
+      const { error } = await supabase.from("absences").delete()
+        .eq("seat_id", seatId)
+        .eq("synagogue_id", synagogueId!)
+        .eq("shabbat_date", nextShabbat);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absences"] });
+      queryClient.invalidateQueries({ queryKey: ["my_absences", synagogueId] });
+      toast({ title: "סטטוס המקום עודכן" });
+    },
+  });
+
+  const handleToggleGabbaiAbsence = useCallback((seatId: string, profileId: string) => {
+    if (allAbsentSeatIds.has(seatId)) {
+      cancelGabbaiAbsenceMutation.mutate({ seatId, profileId });
+    } else {
+      markGabbaiAbsenceMutation.mutate({ seatId, profileId });
+    }
+  }, [allAbsentSeatIds, cancelGabbaiAbsenceMutation, markGabbaiAbsenceMutation]);
   // ========== Excel Import ==========
   const [importOpen, setImportOpen] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedSection[] | null>(null);
@@ -437,6 +495,8 @@ export default function SeatingMap() {
                                   currentUserProfileId={profile?.id}
                                   isAbsent={seat.assigned_to === profile?.id ? absentSeatIds.has(seat.id) : undefined}
                                   onToggleAbsence={seat.assigned_to === profile?.id ? () => handleToggleAbsence(seat.id) : undefined}
+                                  isAbsentForGabbai={canManage && seat.assigned_to ? allAbsentSeatIds.has(seat.id) : undefined}
+                                  onToggleGabbaiAbsence={canManage && seat.assigned_to ? () => handleToggleGabbaiAbsence(seat.id, seat.assigned_to) : undefined}
                                 />
                               ))}
                             </div>
