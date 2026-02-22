@@ -1,123 +1,251 @@
 
 
-# Interactive Absence Reporting from Seating Map
+# DB Migration + Full seat_id Precision for Absences
 
-## Overview
-Remove the Absences tab for regular members and let them report absences by clicking their own turquoise seat directly on the seating map. This creates a much simpler UX where regular members only interact with a single page.
+## Database Migration
 
-## Changes
+Add `seat_id` column to `absences` table and update the unique constraint:
 
-### 1. Hide Absences Button for Regular Members (`SynagogueManage.tsx`)
-
-Wrap the "Absences" link/button (lines 55-60) in a `{canManage && ...}` conditional, so only gabbais and super admins see it. Regular members will only see the "Seating Map" button.
-
-### 2. Make User's Own Seat Clickable for Absence Reporting (`SeatCell.tsx`)
-
-Currently, the seat button is `disabled={!canManage}` -- regular members can't click anything. The changes:
-
-- Accept new props: `isAbsent` (boolean), `onToggleAbsence` (callback), `synagogueId` (string)
-- Change `disabled` logic: allow clicking if `isCurrentUser` (even if not canManage)
-- When `isCurrentUser` and not `canManage`, clicking opens an absence dialog instead of the admin assign dialog
-- The absence dialog shows two states:
-  - **Present (not absent)**: Title "Report Absence", button "I'm not coming" -- inserts into `absences`
-  - **Absent**: Title "Cancel Absence", button "I'm coming (cancel)" -- deletes from `absences`
-- Add a small red dot indicator on the turquoise seat when the user is marked absent
-
-### 3. Fetch Absence Data and Wire Up Mutations (`SeatingMap.tsx`)
-
-- Import `getNextShabbat` utility (copy the function from AbsenceManager or extract it)
-- Add a query to fetch the current user's absence for the upcoming Shabbat:
-  ```
-  SELECT * FROM absences 
-  WHERE profile_id = profile.id 
-  AND synagogue_id = synagogueId 
-  AND shabbat_date = nextShabbat
-  ```
-- Add insert/delete mutations for absences
-- Pass `isAbsent` and `onToggleAbsence` to `SeatCell`
-- Invalidate the absence query on success and show a toast
-
-### 4. Visual Indicator on Absent Seat
-
-When the user's own seat is marked absent, add a small red dot (absolute positioned) in the top-right corner of the turquoise seat button, so the user can see at a glance that their absence is registered.
-
-## Technical Details
-
-### SeatCell.tsx - Updated Props Interface
 ```text
-interface SeatCellProps {
-  seat: any;
-  members: any[];
-  canManage: boolean;
-  onAssign: (seatId: string, profileId: string | null) => void;
-  currentUserProfileId?: string;
-  isAbsent?: boolean;
-  onToggleAbsence?: () => void;
+ALTER TABLE absences ADD COLUMN seat_id uuid REFERENCES seats(id);
+ALTER TABLE absences DROP CONSTRAINT absences_profile_id_synagogue_id_shabbat_date_key;
+ALTER TABLE absences ADD CONSTRAINT absences_profile_seat_date_key UNIQUE (profile_id, synagogue_id, shabbat_date, seat_id);
+```
+
+## Frontend Changes
+
+### 1. `src/pages/SeatingMap.tsx` -- Per-seat absence queries and mutations
+
+**Absence query (lines 99-114):** Change from fetching a single absence record to fetching ALL absence records for this user/synagogue/shabbat, including `seat_id`:
+
+```text
+const { data: myAbsences } = useQuery({
+  queryKey: ["my_absences", synagogueId, profile?.id, nextShabbat],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("absences")
+      .select("id, seat_id")
+      .eq("profile_id", profile!.id)
+      .eq("synagogue_id", synagogueId!)
+      .eq("shabbat_date", nextShabbat);
+    if (error) throw error;
+    return data;
+  },
+  enabled: !!synagogueId && !!profile?.id,
+});
+const absentSeatIds = new Set(myAbsences?.map(a => a.seat_id) || []);
+```
+
+**Insert mutation (lines 132-149):** Accept `seatId: string` parameter, include `seat_id`:
+
+```text
+mutationFn: async (seatId: string) => {
+  await supabase.from("absences").insert({
+    profile_id: profile!.id,
+    synagogue_id: synagogueId!,
+    shabbat_date: nextShabbat,
+    seat_id: seatId,
+  });
 }
 ```
 
-### SeatCell.tsx - Button disabled logic change
+**Delete mutation (lines 151-169):** Accept `seatId: string`, filter by `seat_id`:
+
 ```text
-// Old: disabled={!canManage}
-// New: disabled={!canManage && !isCurrentUser}
+mutationFn: async (seatId: string) => {
+  await supabase.from("absences").delete()
+    .eq("profile_id", profile!.id)
+    .eq("synagogue_id", synagogueId!)
+    .eq("shabbat_date", nextShabbat)
+    .eq("seat_id", seatId);
+}
 ```
 
-### SeatCell.tsx - Dialog rendering logic
+Both mutations invalidate `["my_absences", synagogueId]`.
+
+**handleToggleAbsence (lines 178-184):** Accept `seatId: string`:
+
 ```text
-// If canManage -> show admin assign dialog (existing)
-// Else if isCurrentUser -> show absence toggle dialog (new)
+const handleToggleAbsence = useCallback((seatId: string) => {
+  if (absentSeatIds.has(seatId)) {
+    deleteAbsenceMutation.mutate(seatId);
+  } else {
+    insertAbsenceMutation.mutate(seatId);
+  }
+}, [absentSeatIds, ...]);
 ```
 
-### SeatCell.tsx - Absence dialog content
-```text
-Dialog State 1 (Present):
-  Title: "דיווח היעדרות"
-  Description: "האם ברצונך לעדכן את הגבאי שאינך מגיע השבת / בחג הקרוב? המקום שלך יסומן כפנוי לאורחים."
-  Button: "כן, איני מגיע"
+**SeatCell rendering (lines 429-439):** Pass per-seat props:
 
-Dialog State 2 (Absent):
-  Title: "ביטול היעדרות"
-  Description: "סימנת שאינך מגיע השבת. האם ברצונך לבטל את ההיעדרות?"
-  Button: "אני מגיע (בטל היעדרות)"
+```text
+isAbsent={seat.assigned_to === profile?.id ? absentSeatIds.has(seat.id) : undefined}
+onToggleAbsence={seat.assigned_to === profile?.id ? () => handleToggleAbsence(seat.id) : undefined}
 ```
 
-### SeatingMap.tsx - getNextShabbat function
-Copy the `getNextShabbat()` helper from AbsenceManager.tsx (lines 37-44).
+### 2. `src/components/seating/SeatCell.tsx` -- Empty cell rendering
 
-### SeatingMap.tsx - Absence query
+Add early return for `element_type === 'empty'` before the existing structural element check (before line 36):
+
 ```text
-queryKey: ["my_absence", synagogueId, profile?.id, nextShabbat]
-Query: absences table where profile_id = profile.id, synagogue_id, shabbat_date = nextShabbat
+if (seat.element_type === 'empty') {
+  return <div className="w-14 h-14 sm:w-16 sm:h-16 pointer-events-none" />;
+}
 ```
 
-### SeatingMap.tsx - Mutations
+### 3. `src/pages/AbsenceManager.tsx` -- Full seat_id precision + Gabbai per-seat toggle + empty cells
+
+**Absences query (lines 127-139):** Also select `seat_id`:
+
 ```text
-Insert absence: { profile_id, synagogue_id, shabbat_date }
-Delete absence: delete where profile_id + synagogue_id + shabbat_date match
-Both invalidate the absence query on success
+.select("*, profiles:profile_id(id, full_name, username), seat_id")
 ```
 
-### Red dot indicator (CSS)
+**Replace `absentProfileIds` with `absentSeatIds` (lines 155-158):**
+
 ```text
-{isCurrentUser && isAbsent && (
-  <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white" />
+const absentSeatIds = useMemo(
+  () => new Set(absences?.map((a) => a.seat_id).filter(Boolean) || []),
+  [absences]
+);
+```
+
+**Update parent-level `iAmAbsent` check (line 161):** Remove or keep for the top card -- but since absences are now per-seat, this check no longer makes sense for a single toggle. Remove the "I'm absent" card for now (the user uses the seating map instead), OR keep it but note it's approximate. Simplest: keep the card but base it on whether the user has ANY absence:
+
+```text
+const iAmAbsent = absences?.some(a => a.profile_id === myProfileId) || false;
+```
+
+**Pass `shabbatDate` and `absentSeatIds` to `AbsenceSeatingMap` (line 389-394):**
+
+```text
+<AbsenceSeatingMap
+  sectionId={activeSectionId}
+  synagogueId={synagogueId!}
+  absentSeatIds={absentSeatIds}
+  currentUserProfileId={myProfileId}
+  shabbatDate={shabbatDate}
+/>
+```
+
+**Update AbsenceSeatingMap props (lines 420-429):** Replace `absentProfileIds: Set<string>` with `absentSeatIds: Set<string>` and add `shabbatDate: string`.
+
+**Add mutations inside AbsenceSeatingMap:**
+
+```text
+const queryClient = useQueryClient();
+const { toast } = useToast();
+
+const markSeatAbsentMutation = useMutation({
+  mutationFn: async (seat: any) => {
+    const { error } = await supabase.from("absences").insert({
+      profile_id: seat.assigned_to,
+      synagogue_id: synagogueId,
+      shabbat_date: shabbatDate,
+      seat_id: seat.id,
+      marked_by: currentUserProfileId,
+    });
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
+    setSelectedSeat(null);
+    toast({ title: "סטטוס המקום עודכן" });
+  },
+  onError: (e: Error) => {
+    toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+  },
+});
+
+const cancelSeatAbsenceMutation = useMutation({
+  mutationFn: async (seat: any) => {
+    const { error } = await supabase.from("absences").delete()
+      .eq("profile_id", seat.assigned_to)
+      .eq("synagogue_id", synagogueId)
+      .eq("shabbat_date", shabbatDate)
+      .eq("seat_id", seat.id);
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
+    setSelectedSeat(null);
+    toast({ title: "סטטוס המקום עודכן" });
+  },
+});
+```
+
+**Stats calculation (lines 453-468):** Skip elements and use `absentSeatIds`:
+
+```text
+row.seats?.forEach((seat: any) => {
+  if (seat.element_type) return; // skip structural/empty
+  total++;
+  if (!seat.assigned_to) {
+    unassigned++;
+  } else if (absentSeatIds.has(seat.id)) {
+    available++;
+  } else {
+    occupied++;
+  }
+});
+```
+
+**Seat rendering (lines 501-548):** Add empty cell check, use `absentSeatIds.has(seat.id)`:
+
+```text
+// At top of map callback:
+if (seat.element_type === 'empty') {
+  return <div key={seat.id} className="w-14 h-14 pointer-events-none" />;
+}
+if (seat.element_type) return null; // skip other structural
+
+// Change line 503:
+const isAbsent = isAssigned && absentSeatIds.has(seat.id);
+```
+
+**Selected seat dialog (lines 553-593):** Use `absentSeatIds.has(selectedSeat.id)` instead of `absentProfileIds.has(selectedSeat.assigned_to)`. Add toggle button:
+
+```text
+{selectedSeat.profiles && (
+  <div className="pt-2">
+    {absentSeatIds.has(selectedSeat.id) ? (
+      <Button
+        variant="outline"
+        className="w-full gap-2 border-success text-success"
+        onClick={() => cancelSeatAbsenceMutation.mutate(selectedSeat)}
+        disabled={cancelSeatAbsenceMutation.isPending}
+      >
+        <CheckCircle2 className="h-4 w-4" />
+        בטל היעדרות למקום זה
+      </Button>
+    ) : (
+      <Button
+        variant="outline"
+        className="w-full gap-2 border-destructive text-destructive"
+        onClick={() => markSeatAbsentMutation.mutate(selectedSeat)}
+        disabled={markSeatAbsentMutation.isPending}
+      >
+        <CalendarOff className="h-4 w-4" />
+        סמן מקום זה כפנוי (נעדר)
+      </Button>
+    )}
+  </div>
 )}
 ```
 
-### SynagogueManage.tsx - Line 55-60 change
+**SeatingMap.tsx display filter (line 419-421):** Allow `empty` through:
+
 ```text
-{canManage && (
-  <Link to={`/synagogue/${id}/absences`} className="flex-1">
-    <Button ...>היעדרויות ולוח בקרה</Button>
-  </Link>
-)}
+const displaySeats = row.seats?.filter(
+  (s: any) => !s.element_type || s.element_type === "amud" || s.element_type === "empty"
+) || [];
 ```
 
 ## Files to Change
 
 | File | Change |
 |---|---|
-| `src/pages/SynagogueManage.tsx` | Wrap absences link in `canManage` conditional |
-| `src/components/seating/SeatCell.tsx` | Add absence dialog for own seat, red dot indicator, updated disabled logic |
-| `src/pages/SeatingMap.tsx` | Add getNextShabbat, absence query, insert/delete mutations, pass props to SeatCell |
+| Database migration | Add `seat_id` column, update unique constraint |
+| `src/components/seating/SeatCell.tsx` | Render `empty` elements as invisible spacers |
+| `src/pages/SeatingMap.tsx` | Per-seat absence query/mutations using `absentSeatIds`; allow empty elements in display filter |
+| `src/pages/AbsenceManager.tsx` | Switch to `absentSeatIds`; add Gabbai per-seat toggle in dialog; skip empty/structural in stats; render empty as spacers |
 
