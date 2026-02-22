@@ -112,7 +112,8 @@ export default function SeatingMap() {
   const [parsedData, setParsedData] = useState<ParsedSection[] | null>(null);
   const [importing, setImporting] = useState(false);
   const [createdUsers, setCreatedUsers] = useState<{ fullName: string; username: string; password: string }[]>([]);
-  const [showCreatedUsers, setShowCreatedUsers] = useState(false);
+  const [failedUsers, setFailedUsers] = useState<{ name: string; error: string }[]>([]);
+  const [showImportResults, setShowImportResults] = useState(false);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -150,11 +151,12 @@ export default function SeatingMap() {
 
       if (stats.createdUsers?.length) {
         setCreatedUsers(stats.createdUsers);
-        setShowCreatedUsers(true);
       }
-
       if (stats.failed?.length) {
-        console.log("Failed user creations:", stats.failed);
+        setFailedUsers(stats.failed);
+      }
+      if (stats.createdUsers?.length || stats.failed?.length) {
+        setShowImportResults(true);
       }
 
       queryClient.invalidateQueries({ queryKey: ["full_seating_map", synagogueId] });
@@ -409,37 +411,58 @@ export default function SeatingMap() {
         )}
       </div>
 
-      {/* Created Users Dialog */}
-      <Dialog open={showCreatedUsers} onOpenChange={setShowCreatedUsers}>
+      {/* Import Results Dialog */}
+      <Dialog open={showImportResults} onOpenChange={setShowImportResults}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>משתמשים חדשים נוצרו ({createdUsers.length})</DialogTitle>
+            <DialogTitle>תוצאות ייבוא משתמשים</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            המשתמשים הבאים נוצרו אוטומטית. שמור את הפרטים או הורד כקובץ CSV.
-          </p>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-right">שם מלא</TableHead>
-                <TableHead className="text-right">שם משתמש</TableHead>
-                <TableHead className="text-right">סיסמה</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {createdUsers.map((u, i) => (
-                <TableRow key={i}>
-                  <TableCell>{u.fullName}</TableCell>
-                  <TableCell className="font-mono text-xs">{u.username}</TableCell>
-                  <TableCell className="font-mono text-xs">{u.password}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <Button onClick={downloadCreatedUsersCsv} className="w-full gap-2">
-            <Download className="h-4 w-4" />
-            הורד CSV
-          </Button>
+
+          {createdUsers.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                ✅ {createdUsers.length} משתמשים נוצרו בהצלחה
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-right">שם מלא</TableHead>
+                    <TableHead className="text-right">שם משתמש</TableHead>
+                    <TableHead className="text-right">סיסמה</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {createdUsers.map((u, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{u.fullName}</TableCell>
+                      <TableCell className="font-mono text-xs">{u.username}</TableCell>
+                      <TableCell className="font-mono text-xs">{u.password}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Button onClick={downloadCreatedUsersCsv} variant="outline" className="w-full gap-2">
+                <Download className="h-4 w-4" />
+                הורד CSV
+              </Button>
+            </div>
+          )}
+
+          {failedUsers.length > 0 && (
+            <div className="space-y-2 mt-4">
+              <p className="text-sm font-medium text-destructive">
+                ❌ {failedUsers.length} משתמשים נכשלו
+              </p>
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-1 max-h-60 overflow-y-auto">
+                {failedUsers.map((f, i) => (
+                  <div key={i} className="text-xs space-y-0.5">
+                    <span className="font-medium">{f.name}</span>
+                    <span className="text-destructive block font-mono">{f.error}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </AppLayout>
