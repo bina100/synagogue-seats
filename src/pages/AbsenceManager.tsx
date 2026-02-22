@@ -598,7 +598,7 @@ function AbsenceSeatingMap({
         {rows.map((row) => (
           <div key={row.id} className="space-y-1">
             <span className="text-xs text-muted-foreground no-print">שורה {row.row_number}</span>
-            <div className="flex flex-wrap gap-1.5 justify-center">
+            <div className="flex flex-wrap gap-1.5 justify-center print-seat-row">
               {row.seats?.map((seat: any) => {
                 if (seat.element_type === 'empty') {
                   return <div key={seat.id} className="w-14 h-14 pointer-events-none" />;
