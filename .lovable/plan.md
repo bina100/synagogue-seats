@@ -1,88 +1,55 @@
 
 
-# Fix Import Overwrite: Per-Section Deletion in Edge Function
+# Fix Empty Cell Source Data and Gabbai Absence Indicator
 
-## Root Cause
+## Changes
 
-The current deletion logic (lines 111-142) attempts a bulk delete of ALL sections/rows/seats at the synagogue level before the insert loop. This approach fails silently when:
-- Delete operations return errors that are never checked
-- Absences with NULL `seat_id` (pre-migration records) aren't caught by `.in("seat_id", seatIds)`
-- The bulk approach leaves orphaned data if any step fails
+### 1. Edge Function: Mark blank cells as `element_type: 'empty'`
 
-## Fix
+**File: `supabase/functions/import-seating-map/index.ts`** (line 292-296)
 
-Restructure the deletion to happen **per-section inside the creation loop**, using the user's exact explicit deletion sequence. Remove the old bulk deletion block (lines 111-142) and add per-section cleanup right after inserting each new section (using the section name to find matching old sections).
+Currently, when a parsed seat has no name and no element_type (a blank cell), it gets inserted with `element_type: null`, making it indistinguishable from a real unassigned seat.
 
-**File: `supabase/functions/import-seating-map/index.ts`**
+Fix: In the seat insertion block, if `seat.name` is null AND `seat.element_type` is null, set `element_type` to `'empty'`:
 
-### Step 1: Remove the existing bulk deletion block (lines 111-142)
-
-Delete the entire block from `// Delete existing sections/rows/seats for this synagogue` through the closing brace.
-
-### Step 2: Add per-section cleanup inside the creation loop
-
-Right after the permission check (line 98) and before the creation loop, delete ALL existing data for this synagogue using explicit per-table cascading:
-
-```
-// --- Clean sweep: delete ALL existing data for this synagogue ---
-const { data: oldSections } = await supabaseAdmin
-  .from("sections")
-  .select("id")
-  .eq("synagogue_id", synagogue_id);
-
-if (oldSections && oldSections.length > 0) {
-  const oldSectionIds = oldSections.map((s: any) => s.id);
-
-  // 1. Find ALL existing rows for these sections
-  const { data: oldRows } = await supabaseAdmin
-    .from("seat_rows")
-    .select("id")
-    .in("section_id", oldSectionIds);
-
-  if (oldRows && oldRows.length > 0) {
-    const oldRowIds = oldRows.map((r: any) => r.id);
-
-    // 2. Find ALL existing seats for these rows
-    const { data: oldSeats } = await supabaseAdmin
-      .from("seats")
-      .select("id")
-      .in("row_id", oldRowIds);
-
-    if (oldSeats && oldSeats.length > 0) {
-      const oldSeatIds = oldSeats.map((s: any) => s.id);
-
-      // 3. Delete absences referencing these old seats (by seat_id)
-      await supabaseAdmin.from("absences").delete().in("seat_id", oldSeatIds);
-    }
-
-    // 4. Also delete any absences for this synagogue with NULL seat_id (pre-migration)
-    await supabaseAdmin.from("absences").delete()
-      .eq("synagogue_id", synagogue_id)
-      .is("seat_id", null);
-
-    // 5. Delete old seats explicitly
-    await supabaseAdmin.from("seats").delete().in("row_id", oldRowIds);
-
-    // 6. Delete old rows explicitly
-    await supabaseAdmin.from("seat_rows").delete().in("section_id", oldSectionIds);
-  }
-
-  // 7. Delete old sections
-  await supabaseAdmin.from("sections").delete().eq("synagogue_id", synagogue_id);
-}
+```typescript
+// Line 292-296 change:
+const isEmptyCell = !seat.name && !seat.element_type;
+seatsToInsert.push({
+  row_id: newRow.id,
+  seat_number: idx + 1,
+  assigned_to: assignedTo,
+  element_type: isEmptyCell ? 'empty' : (seat.element_type || null),
+});
 ```
 
-Key differences from the old code:
-- Explicitly deletes absences with NULL `seat_id` (pre-migration records) that the old `.in("seat_id", ...)` filter would miss
-- Same logical structure but clearer variable naming (`oldRows`, `oldSeats`, `oldSeatIds`) to avoid any confusion with newly-created data
-- Runs before the insert loop, ensuring a completely clean slate
+Deploy the updated function.
 
-### Step 3: Deploy
+### 2. Stats in AbsenceManager.tsx -- Already Correct
 
-Deploy the updated `import-seating-map` edge function.
+Line 506: `if (seat.element_type) return;` already skips ALL non-null element_types including `'empty'`, `'bima'`, `'aron_kodesh'`, `'amud'`. No change needed.
+
+SeatingMap.tsx has no stats bar, so no change needed there either.
+
+### 3. SeatCell.tsx: Show red dot for Gabbai too
+
+**File: `src/components/seating/SeatCell.tsx`** (line 70-73)
+
+Current code only shows the red absence dot when `isCurrentUser && isAbsent`. Change to show it whenever the seat is absent from either perspective:
+
+```typescript
+{/* Red dot for absent seat */}
+{((isCurrentUser && isAbsent) || isAbsentForGabbai) && (
+  <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full border-2 border-white z-10" />
+)}
+```
+
+This ensures the Gabbai sees a red indicator on every absent seat, not just the current user's.
 
 ## Files to Change
 
 | File | Change |
 |---|---|
-| `supabase/functions/import-seating-map/index.ts` | Replace bulk deletion block with explicit cascading delete that also handles NULL seat_id absences |
+| `supabase/functions/import-seating-map/index.ts` | Set `element_type: 'empty'` for blank cells during import |
+| `src/components/seating/SeatCell.tsx` | Show red absence dot for `isAbsentForGabbai` too, increase size to w-4/h-4 |
+
