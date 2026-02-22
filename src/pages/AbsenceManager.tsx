@@ -204,12 +204,39 @@ export default function AbsenceManager() {
   // Mark absence for another member (gabbai)
   const markOtherAbsentMutation = useMutation({
     mutationFn: async (profileId: string) => {
-      const { error } = await supabase.from("absences").insert({
+      // Find all seats assigned to this profile in this synagogue
+      const { data: seatRows } = await supabase
+        .from("seat_rows")
+        .select("id, sections!inner(synagogue_id)")
+        .eq("sections.synagogue_id", synagogueId!);
+
+      const rowIds = seatRows?.map((r: any) => r.id) || [];
+
+      const { data: seats } = await supabase
+        .from("seats")
+        .select("id")
+        .in("row_id", rowIds)
+        .eq("assigned_to", profileId);
+
+      if (!seats || seats.length === 0) {
+        const { error } = await supabase.from("absences").insert({
+          profile_id: profileId,
+          synagogue_id: synagogueId!,
+          shabbat_date: shabbatDate,
+          marked_by: myProfileId,
+        });
+        if (error) throw error;
+        return;
+      }
+
+      const rows = seats.map((s: any) => ({
         profile_id: profileId,
         synagogue_id: synagogueId!,
         shabbat_date: shabbatDate,
         marked_by: myProfileId,
-      });
+        seat_id: s.id,
+      }));
+      const { error } = await supabase.from("absences").insert(rows);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -428,7 +455,7 @@ export default function AbsenceManager() {
         )}
 
         {/* Legend */}
-        <div className="flex gap-4 text-xs text-muted-foreground justify-center print:text-black">
+        <div className="flex gap-4 text-xs text-muted-foreground justify-center no-print">
           <span className="flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded bg-destructive/20 border border-destructive/40" />
             תפוס
@@ -559,9 +586,9 @@ function AbsenceSeatingMap({
 
   return (
     <Card>
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 no-print">
         <CardTitle className="text-base">מפת מקומות</CardTitle>
-        <div className="flex gap-3 text-sm print:text-black">
+        <div className="flex gap-3 text-sm">
           <span className="text-destructive font-medium">{stats.occupied} תפוסים</span>
           <span className="text-success font-medium">{stats.available} פנויים</span>
           <span className="text-muted-foreground">{stats.unassigned} לא שויכו</span>
@@ -570,7 +597,7 @@ function AbsenceSeatingMap({
       <CardContent className="space-y-3">
         {rows.map((row) => (
           <div key={row.id} className="space-y-1">
-            <span className="text-xs text-muted-foreground">שורה {row.row_number}</span>
+            <span className="text-xs text-muted-foreground no-print">שורה {row.row_number}</span>
             <div className="flex flex-wrap gap-1.5 justify-center">
               {row.seats?.map((seat: any) => {
                 if (seat.element_type === 'empty') {
