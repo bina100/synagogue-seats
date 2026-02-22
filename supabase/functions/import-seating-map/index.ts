@@ -8,7 +8,7 @@ const corsHeaders = {
 
 interface SeatData {
   name: string | null;
-  element_type: string | null; // 'aron_kodesh' | 'bima' | 'amud' | 'chatan' | null
+  element_type: string | null;
 }
 
 interface RowData {
@@ -31,7 +31,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Auth check
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -63,22 +62,13 @@ Deno.serve(async (req: Request) => {
 
     const authId = claimsData.claims.sub;
 
-    // Check permission
-    const { data: canManage } = await supabaseAdmin.rpc(
-      "can_manage_synagogue",
-      { _auth_id: authId, _synagogue_id: "" }
-    );
-
     const payload: ImportPayload = await req.json();
     const { synagogue_id, sections } = payload;
 
     if (!synagogue_id || !sections?.length) {
       return new Response(
         JSON.stringify({ error: "Missing synagogue_id or sections" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -113,7 +103,6 @@ Deno.serve(async (req: Request) => {
 
     if (existingSections?.length) {
       const sectionIds = existingSections.map((s: any) => s.id);
-
       const { data: existingRows } = await supabaseAdmin
         .from("seat_rows")
         .select("id")
@@ -122,31 +111,30 @@ Deno.serve(async (req: Request) => {
       if (existingRows?.length) {
         const rowIds = existingRows.map((r: any) => r.id);
         await supabaseAdmin.from("seats").delete().in("row_id", rowIds);
-        await supabaseAdmin
-          .from("seat_rows")
-          .delete()
-          .in("section_id", sectionIds);
+        await supabaseAdmin.from("seat_rows").delete().in("section_id", sectionIds);
       }
 
-      await supabaseAdmin
-        .from("sections")
-        .delete()
-        .eq("synagogue_id", synagogue_id);
+      await supabaseAdmin.from("sections").delete().eq("synagogue_id", synagogue_id);
     }
 
     // Create sections, rows, seats
-    let stats = { sections: 0, rows: 0, seats: 0, matched: 0, unmatched: [] as string[] };
+    const stats = {
+      sections: 0,
+      rows: 0,
+      seats: 0,
+      matched: 0,
+      createdUsers: [] as { fullName: string; username: string; password: string }[],
+      failed: [] as { name: string; error: string }[],
+    };
+
+    const defaultPassword = "123456";
 
     for (let si = 0; si < sections.length; si++) {
       const sec = sections[si];
 
       const { data: newSection, error: secErr } = await supabaseAdmin
         .from("sections")
-        .insert({
-          synagogue_id,
-          name: sec.name,
-          sort_order: si,
-        })
+        .insert({ synagogue_id, name: sec.name, sort_order: si })
         .select()
         .single();
 
@@ -175,25 +163,104 @@ Deno.serve(async (req: Request) => {
         }
         stats.rows++;
 
-        const seatsToInsert = row.seats.map((seat, idx) => {
+        const seatsToInsert = [];
+
+        for (let idx = 0; idx < row.seats.length; idx++) {
+          const seat = row.seats[idx];
           let assignedTo: string | null = null;
+
           if (seat.name && !seat.element_type) {
-            const profileId = profileMap.get(seat.name.trim());
-            if (profileId) {
-              assignedTo = profileId;
+            const cleanedName = seat.name.trim().replace(/\s+/g, " ");
+            const existingProfileId = profileMap.get(cleanedName);
+
+            if (existingProfileId) {
+              assignedTo = existingProfileId;
               stats.matched++;
             } else {
-              stats.unmatched.push(seat.name);
+              // Auto-create user - email matches frontend signIn logic exactly
+              const email = `${cleanedName.replace(/\s/g, "_")}@synagogue.local`;
+
+              try {
+                const { data: authData, error: createErr } =
+                  await supabaseAdmin.auth.admin.createUser({
+                    email,
+                    password: defaultPassword,
+                    email_confirm: true,
+                    user_metadata: {
+                      username: cleanedName,
+                      full_name: cleanedName,
+                    },
+                  });
+
+                if (createErr || !authData?.user) {
+                  stats.failed.push({
+                    name: cleanedName,
+                    error: createErr?.message || "Unknown error creating user",
+                  });
+                } else {
+                  // Immediately insert profile (don't wait for trigger)
+                  const { data: profileData, error: profileErr } = await supabaseAdmin
+                    .from("profiles")
+                    .upsert(
+                      {
+                        auth_id: authData.user.id,
+                        username: cleanedName,
+                        full_name: cleanedName,
+                        requires_password_change: true,
+                      },
+                      { onConflict: "auth_id" }
+                    )
+                    .select("id")
+                    .single();
+
+                  if (profileErr || !profileData) {
+                    stats.failed.push({
+                      name: cleanedName,
+                      error: profileErr?.message || "Failed to create profile",
+                    });
+                  } else {
+                    assignedTo = profileData.id;
+                    profileMap.set(cleanedName, profileData.id);
+
+                    // Add to synagogue_members
+                    await supabaseAdmin.from("synagogue_members").upsert(
+                      { profile_id: profileData.id, synagogue_id },
+                      { onConflict: "profile_id,synagogue_id" }
+                    );
+
+                    // Add member role
+                    await supabaseAdmin.from("user_roles").upsert(
+                      {
+                        user_id: profileData.id,
+                        role: "member",
+                        synagogue_id,
+                      },
+                      { onConflict: "user_id,role" }
+                    );
+
+                    stats.createdUsers.push({
+                      fullName: cleanedName,
+                      username: cleanedName,
+                      password: defaultPassword,
+                    });
+                  }
+                }
+              } catch (err: any) {
+                stats.failed.push({
+                  name: cleanedName,
+                  error: err.message || "Exception creating user",
+                });
+              }
             }
           }
 
-          return {
+          seatsToInsert.push({
             row_id: newRow.id,
             seat_number: idx + 1,
             assigned_to: assignedTo,
             element_type: seat.element_type || null,
-          };
-        });
+          });
+        }
 
         const { error: seatsErr } = await supabaseAdmin
           .from("seats")
@@ -208,14 +275,11 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ success: true, stats }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Import error:", err);
     return new Response(
       JSON.stringify({ error: err.message || "Internal error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

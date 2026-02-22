@@ -69,6 +69,7 @@ export type Database = {
           created_at: string
           full_name: string
           id: string
+          requires_password_change: boolean
           username: string
         }
         Insert: {
@@ -76,6 +77,7 @@ export type Database = {
           created_at?: string
           full_name: string
           id?: string
+          requires_password_change?: boolean
           username: string
         }
         Update: {
@@ -83,6 +85,7 @@ export type Database = {
           created_at?: string
           full_name?: string
           id?: string
+          requires_password_change?: boolean
           username?: string
         }
         Relationships: []

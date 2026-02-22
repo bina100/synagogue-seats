@@ -2,6 +2,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Building2, LogOut, UserCircle, ArrowRight } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import ForcePasswordChange from "@/components/ForcePasswordChange";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -55,6 +56,13 @@ export default function AppLayout({ children, title, showBack }: AppLayoutProps)
       <main className="container mx-auto p-3 sm:p-4 space-y-4 sm:space-y-6">
         {children}
       </main>
+
+      {profile?.requires_password_change && (
+        <ForcePasswordChange
+          profileId={profile.id}
+          onDone={() => window.location.reload()}
+        />
+      )}
     </div>
   );
 }
