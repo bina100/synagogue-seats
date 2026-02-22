@@ -289,11 +289,12 @@ Deno.serve(async (req: Request) => {
             }
           }
 
+          const isEmptyCell = !seat.name && !seat.element_type;
           seatsToInsert.push({
             row_id: newRow.id,
             seat_number: idx + 1,
             assigned_to: assignedTo,
-            element_type: seat.element_type || null,
+            element_type: isEmptyCell ? 'empty' : (seat.element_type || null),
           });
         }
 

@@ -67,9 +67,9 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
           disabled={!canManage && !isCurrentUser}
           title={isAssigned ? assignedProfile?.full_name : `מקום ${seat.seat_number}`}
         >
-          {/* Red dot for absent user */}
-          {isCurrentUser && isAbsent && (
-            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white" />
+          {/* Red dot for absent seat */}
+          {((isCurrentUser && isAbsent) || isAbsentForGabbai) && (
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full border-2 border-white z-10" />
           )}
           <Armchair className="h-3.5 w-3.5 mb-0.5" />
           <span className="text-[8px] leading-tight text-center whitespace-normal break-words max-w-[44px]">
