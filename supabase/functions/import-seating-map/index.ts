@@ -108,34 +108,39 @@ Deno.serve(async (req: Request) => {
       }
     });
 
-    // Delete existing sections/rows/seats for this synagogue
-    const { data: existingSections } = await supabaseAdmin
+    // --- Clean sweep: delete ALL existing data for this synagogue ---
+    const { data: oldSections } = await supabaseAdmin
       .from("sections")
       .select("id")
       .eq("synagogue_id", synagogue_id);
 
-    if (existingSections?.length) {
-      const sectionIds = existingSections.map((s: any) => s.id);
-      const { data: existingRows } = await supabaseAdmin
+    if (oldSections && oldSections.length > 0) {
+      const oldSectionIds = oldSections.map((s: any) => s.id);
+
+      const { data: oldRows } = await supabaseAdmin
         .from("seat_rows")
         .select("id")
-        .in("section_id", sectionIds);
+        .in("section_id", oldSectionIds);
 
-      if (existingRows?.length) {
-        const rowIds = existingRows.map((r: any) => r.id);
+      if (oldRows && oldRows.length > 0) {
+        const oldRowIds = oldRows.map((r: any) => r.id);
 
-        // Delete absences referencing these seats before deleting seats
-        const { data: existingSeats } = await supabaseAdmin
+        const { data: oldSeats } = await supabaseAdmin
           .from("seats")
           .select("id")
-          .in("row_id", rowIds);
-        if (existingSeats?.length) {
-          const seatIds = existingSeats.map((s: any) => s.id);
-          await supabaseAdmin.from("absences").delete().in("seat_id", seatIds);
+          .in("row_id", oldRowIds);
+
+        if (oldSeats && oldSeats.length > 0) {
+          const oldSeatIds = oldSeats.map((s: any) => s.id);
+          await supabaseAdmin.from("absences").delete().in("seat_id", oldSeatIds);
         }
 
-        await supabaseAdmin.from("seats").delete().in("row_id", rowIds);
-        await supabaseAdmin.from("seat_rows").delete().in("section_id", sectionIds);
+        await supabaseAdmin.from("absences").delete()
+          .eq("synagogue_id", synagogue_id)
+          .is("seat_id", null);
+
+        await supabaseAdmin.from("seats").delete().in("row_id", oldRowIds);
+        await supabaseAdmin.from("seat_rows").delete().in("section_id", oldSectionIds);
       }
 
       await supabaseAdmin.from("sections").delete().eq("synagogue_id", synagogue_id);
