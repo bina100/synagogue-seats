@@ -6,6 +6,7 @@ interface Profile {
   id: string;
   username: string;
   full_name: string;
+  requires_password_change: boolean;
 }
 
 interface AuthContextType {
@@ -32,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async (authId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("id, username, full_name")
+      .select("id, username, full_name, requires_password_change")
       .eq("auth_id", authId)
       .single();
     if (data) {

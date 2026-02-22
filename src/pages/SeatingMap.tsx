@@ -16,7 +16,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Armchair, Upload, FileSpreadsheet } from "lucide-react";
+import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SeatCell from "@/components/seating/SeatCell";
 import StructuralElement from "@/components/seating/StructuralElement";
 import { parseSeatingExcel, type ParsedSection } from "@/lib/parseSeatingExcel";
@@ -110,6 +111,8 @@ export default function SeatingMap() {
   const [importOpen, setImportOpen] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedSection[] | null>(null);
   const [importing, setImporting] = useState(false);
+  const [createdUsers, setCreatedUsers] = useState<{ fullName: string; username: string; password: string }[]>([]);
+  const [showCreatedUsers, setShowCreatedUsers] = useState(false);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,13 +142,19 @@ export default function SeatingMap() {
 
       if (error) throw error;
 
+      const stats = data.stats;
       toast({
         title: "הייבוא הצליח!",
-        description: `${data.stats.sections} מחלקות, ${data.stats.rows} שורות, ${data.stats.seats} מקומות. ${data.stats.matched} שויכו אוטומטית.`,
+        description: `${stats.sections} מחלקות, ${stats.rows} שורות, ${stats.seats} מקומות. ${stats.matched} שויכו אוטומטית.`,
       });
 
-      if (data.stats.unmatched?.length) {
-        console.log("Unmatched names:", data.stats.unmatched);
+      if (stats.createdUsers?.length) {
+        setCreatedUsers(stats.createdUsers);
+        setShowCreatedUsers(true);
+      }
+
+      if (stats.failed?.length) {
+        console.log("Failed user creations:", stats.failed);
       }
 
       queryClient.invalidateQueries({ queryKey: ["full_seating_map", synagogueId] });
@@ -156,6 +165,19 @@ export default function SeatingMap() {
     } finally {
       setImporting(false);
     }
+  };
+
+  const downloadCreatedUsersCsv = () => {
+    const bom = "\uFEFF";
+    const header = "שם מלא,שם משתמש,סיסמה\n";
+    const rows = createdUsers.map((u) => `${u.fullName},${u.username},${u.password}`).join("\n");
+    const blob = new Blob([bom + header + rows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "משתמשים_חדשים.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   // Calculate max rows across all sections for grid alignment
@@ -386,6 +408,40 @@ export default function SeatingMap() {
           </Card>
         )}
       </div>
+
+      {/* Created Users Dialog */}
+      <Dialog open={showCreatedUsers} onOpenChange={setShowCreatedUsers}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>משתמשים חדשים נוצרו ({createdUsers.length})</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            המשתמשים הבאים נוצרו אוטומטית. שמור את הפרטים או הורד כקובץ CSV.
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-right">שם מלא</TableHead>
+                <TableHead className="text-right">שם משתמש</TableHead>
+                <TableHead className="text-right">סיסמה</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {createdUsers.map((u, i) => (
+                <TableRow key={i}>
+                  <TableCell>{u.fullName}</TableCell>
+                  <TableCell className="font-mono text-xs">{u.username}</TableCell>
+                  <TableCell className="font-mono text-xs">{u.password}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Button onClick={downloadCreatedUsersCsv} className="w-full gap-2">
+            <Download className="h-4 w-4" />
+            הורד CSV
+          </Button>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
