@@ -1,165 +1,88 @@
 
 
-# Fix Integration Bugs: Import, Sync, Gabbai Controls, Empty Cells
+# Fix Import Overwrite: Per-Section Deletion in Edge Function
 
-## 1. Fix Import Overwrite (Edge Function)
+## Root Cause
 
-The import function already attempts to delete existing data (lines 111-131), but it will **fail silently** now because the new `seat_id` foreign key on `absences` prevents deleting seats that have absence records pointing to them. The fix: delete absences for the synagogue's seats before deleting the seats themselves.
+The current deletion logic (lines 111-142) attempts a bulk delete of ALL sections/rows/seats at the synagogue level before the insert loop. This approach fails silently when:
+- Delete operations return errors that are never checked
+- Absences with NULL `seat_id` (pre-migration records) aren't caught by `.in("seat_id", seatIds)`
+- The bulk approach leaves orphaned data if any step fails
+
+## Fix
+
+Restructure the deletion to happen **per-section inside the creation loop**, using the user's exact explicit deletion sequence. Remove the old bulk deletion block (lines 111-142) and add per-section cleanup right after inserting each new section (using the section name to find matching old sections).
 
 **File: `supabase/functions/import-seating-map/index.ts`**
 
-Add before the seats delete (line 126):
+### Step 1: Remove the existing bulk deletion block (lines 111-142)
 
-```text
-// Delete absences referencing these seats
-const { data: existingSeats } = await supabaseAdmin
-  .from("seats")
+Delete the entire block from `// Delete existing sections/rows/seats for this synagogue` through the closing brace.
+
+### Step 2: Add per-section cleanup inside the creation loop
+
+Right after the permission check (line 98) and before the creation loop, delete ALL existing data for this synagogue using explicit per-table cascading:
+
+```
+// --- Clean sweep: delete ALL existing data for this synagogue ---
+const { data: oldSections } = await supabaseAdmin
+  .from("sections")
   .select("id")
-  .in("row_id", rowIds);
-if (existingSeats?.length) {
-  const seatIds = existingSeats.map((s: any) => s.id);
-  await supabaseAdmin.from("absences").delete().in("seat_id", seatIds);
-}
-```
+  .eq("synagogue_id", synagogue_id);
 
-This ensures the cascade: absences -> seats -> seat_rows -> sections.
+if (oldSections && oldSections.length > 0) {
+  const oldSectionIds = oldSections.map((s: any) => s.id);
 
-## 2. Fix Absence State Synchronization
+  // 1. Find ALL existing rows for these sections
+  const { data: oldRows } = await supabaseAdmin
+    .from("seat_rows")
+    .select("id")
+    .in("section_id", oldSectionIds);
 
-**File: `src/pages/SeatingMap.tsx`**
+  if (oldRows && oldRows.length > 0) {
+    const oldRowIds = oldRows.map((r: any) => r.id);
 
-Both mutations (insert line 142, delete line 163) currently invalidate only `["my_absences", synagogueId]`. Change both to **also** invalidate the broader `["absences"]` query key so the Gabbai's `AbsenceManager` view refreshes:
+    // 2. Find ALL existing seats for these rows
+    const { data: oldSeats } = await supabaseAdmin
+      .from("seats")
+      .select("id")
+      .in("row_id", oldRowIds);
 
-```text
-onSuccess: () => {
-  queryClient.invalidateQueries({ queryKey: ["my_absences", synagogueId] });
-  queryClient.invalidateQueries({ queryKey: ["absences"] });
-  toast({ ... });
-}
-```
+    if (oldSeats && oldSeats.length > 0) {
+      const oldSeatIds = oldSeats.map((s: any) => s.id);
 
-The `getNextShabbat()` functions are already identical between both files -- no change needed there.
+      // 3. Delete absences referencing these old seats (by seat_id)
+      await supabaseAdmin.from("absences").delete().in("seat_id", oldSeatIds);
+    }
 
-## 3. Unify Gabbai Controls in SeatCell.tsx (Main Map)
+    // 4. Also delete any absences for this synagogue with NULL seat_id (pre-migration)
+    await supabaseAdmin.from("absences").delete()
+      .eq("synagogue_id", synagogue_id)
+      .is("seat_id", null);
 
-**File: `src/components/seating/SeatCell.tsx`**
+    // 5. Delete old seats explicitly
+    await supabaseAdmin.from("seats").delete().in("row_id", oldRowIds);
 
-Add new props:
-- `isAbsentForGabbai?: boolean` -- whether this seat is absent (from gabbai's perspective, checking all seats not just current user's)
-- `onToggleGabbaiAbsence?: () => void` -- callback for gabbai to toggle absence on any assigned seat
-- `shabbatDate?: string` -- for display text
-
-In the `canManage` dialog (lines 82-131), after the existing assign/remove section, add a new section (only if `isAssigned`):
-
-```text
-{/* Shabbat Absence section (only for assigned seats) */}
-{isAssigned && (
-  <div className="space-y-2 border-t pt-3">
-    <Label>היעדרות לשבת</Label>
-    {isAbsentForGabbai ? (
-      <Button variant="outline" className="w-full gap-2 border-success text-success"
-        onClick={() => { onToggleGabbaiAbsence?.(); setOpen(false); }}>
-        <CheckCircle2 /> בטל היעדרות למקום זה
-      </Button>
-    ) : (
-      <Button variant="outline" className="w-full gap-2 border-destructive text-destructive"
-        onClick={() => { onToggleGabbaiAbsence?.(); setOpen(false); }}>
-        <CalendarOff /> סמן כפנוי לשבת
-      </Button>
-    )}
-  </div>
-)}
-```
-
-Import `CalendarOff` and `CheckCircle2` from lucide-react.
-
-**File: `src/pages/SeatingMap.tsx`**
-
-Fetch ALL absences for the synagogue (not just current user's) so gabbai can see which seats are absent:
-
-```text
-const { data: allAbsences } = useQuery({
-  queryKey: ["absences", synagogueId, nextShabbat],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("absences")
-      .select("id, seat_id, profile_id")
-      .eq("synagogue_id", synagogueId!)
-      .eq("shabbat_date", nextShabbat);
-    if (error) throw error;
-    return data;
-  },
-  enabled: !!synagogueId && canManage,
-});
-const allAbsentSeatIds = new Set((allAbsences ?? []).map(a => a.seat_id).filter(Boolean));
-```
-
-Add gabbai mutations (mark/cancel for any seat):
-
-```text
-const markGabbaiAbsenceMutation = useMutation({
-  mutationFn: async ({ seatId, profileId }: { seatId: string; profileId: string }) => {
-    await supabase.from("absences").insert({
-      profile_id: profileId,
-      synagogue_id: synagogueId!,
-      shabbat_date: nextShabbat,
-      seat_id: seatId,
-      marked_by: profile!.id,
-    } as any);
-  },
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ["absences"] });
-    toast({ title: "סטטוס המקום עודכן" });
-  },
-});
-
-const cancelGabbaiAbsenceMutation = useMutation({
-  mutationFn: async ({ seatId, profileId }: { seatId: string; profileId: string }) => {
-    await supabase.from("absences").delete()
-      .eq("seat_id", seatId)
-      .eq("synagogue_id", synagogueId!)
-      .eq("shabbat_date", nextShabbat);
-  },
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ["absences"] });
-    toast({ title: "סטטוס המקום עודכן" });
-  },
-});
-```
-
-Add `handleToggleGabbaiAbsence`:
-
-```text
-const handleToggleGabbaiAbsence = useCallback((seatId: string, profileId: string) => {
-  if (allAbsentSeatIds.has(seatId)) {
-    cancelGabbaiAbsenceMutation.mutate({ seatId, profileId });
-  } else {
-    markGabbaiAbsenceMutation.mutate({ seatId, profileId });
+    // 6. Delete old rows explicitly
+    await supabaseAdmin.from("seat_rows").delete().in("section_id", oldSectionIds);
   }
-}, [allAbsentSeatIds, ...]);
+
+  // 7. Delete old sections
+  await supabaseAdmin.from("sections").delete().eq("synagogue_id", synagogue_id);
+}
 ```
 
-Pass to SeatCell:
+Key differences from the old code:
+- Explicitly deletes absences with NULL `seat_id` (pre-migration records) that the old `.in("seat_id", ...)` filter would miss
+- Same logical structure but clearer variable naming (`oldRows`, `oldSeats`, `oldSeatIds`) to avoid any confusion with newly-created data
+- Runs before the insert loop, ensuring a completely clean slate
 
-```text
-<SeatCell
-  ...existing props...
-  isAbsentForGabbai={canManage && seat.assigned_to ? allAbsentSeatIds.has(seat.id) : undefined}
-  onToggleGabbaiAbsence={canManage && seat.assigned_to
-    ? () => handleToggleGabbaiAbsence(seat.id, seat.assigned_to)
-    : undefined}
-/>
-```
+### Step 3: Deploy
 
-## 4. Empty Cells in AbsenceManager
-
-Already fixed in lines 551-553 of `AbsenceManager.tsx`. The empty cells render as invisible spacers. No further changes needed here.
+Deploy the updated `import-seating-map` edge function.
 
 ## Files to Change
 
 | File | Change |
 |---|---|
-| `supabase/functions/import-seating-map/index.ts` | Delete absences referencing seats before deleting seats |
-| `src/pages/SeatingMap.tsx` | Broader query invalidation; fetch all absences for gabbai; gabbai absence mutations; pass new props to SeatCell |
-| `src/components/seating/SeatCell.tsx` | Add gabbai absence toggle section in admin dialog; new props |
-
+| `supabase/functions/import-seating-map/index.ts` | Replace bulk deletion block with explicit cascading delete that also handles NULL seat_id absences |
