@@ -20,6 +20,7 @@ export type Database = {
           id: string
           marked_by: string | null
           profile_id: string
+          seat_id: string | null
           shabbat_date: string
           synagogue_id: string
         }
@@ -28,6 +29,7 @@ export type Database = {
           id?: string
           marked_by?: string | null
           profile_id: string
+          seat_id?: string | null
           shabbat_date: string
           synagogue_id: string
         }
@@ -36,6 +38,7 @@ export type Database = {
           id?: string
           marked_by?: string | null
           profile_id?: string
+          seat_id?: string | null
           shabbat_date?: string
           synagogue_id?: string
         }
@@ -52,6 +55,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "absences_seat_id_fkey"
+            columns: ["seat_id"]
+            isOneToOne: false
+            referencedRelation: "seats"
             referencedColumns: ["id"]
           },
           {

@@ -129,7 +129,7 @@ export default function AbsenceManager() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("absences")
-        .select("*, profiles:profile_id(id, full_name, username)")
+        .select("*, profiles:profile_id(id, full_name, username), seat_id")
         .eq("synagogue_id", synagogueId!)
         .eq("shabbat_date", shabbatDate);
       if (error) throw error;
@@ -157,8 +157,13 @@ export default function AbsenceManager() {
     [absences]
   );
 
+  const absentSeatIds = useMemo(
+    () => new Set(absences?.map((a) => (a as any).seat_id).filter(Boolean) || []),
+    [absences]
+  );
+
   const myProfileId = profile?.id;
-  const iAmAbsent = myProfileId ? absentProfileIds.has(myProfileId) : false;
+  const iAmAbsent = absences?.some(a => a.profile_id === myProfileId) || false;
 
   // Mark self absent
   const markAbsentMutation = useMutation({
@@ -389,8 +394,9 @@ export default function AbsenceManager() {
               <AbsenceSeatingMap
                 sectionId={activeSectionId}
                 synagogueId={synagogueId!}
-                absentProfileIds={absentProfileIds}
+                absentSeatIds={absentSeatIds}
                 currentUserProfileId={myProfileId}
+                shabbatDate={shabbatDate}
               />
             )}
           </>
@@ -420,17 +426,59 @@ export default function AbsenceManager() {
 function AbsenceSeatingMap({
   sectionId,
   synagogueId,
-  absentProfileIds,
+  absentSeatIds,
   currentUserProfileId,
+  shabbatDate,
 }: {
   sectionId: string;
   synagogueId: string;
-  absentProfileIds: Set<string>;
+  absentSeatIds: Set<string>;
   currentUserProfileId?: string;
+  shabbatDate: string;
 }) {
   const [selectedSeat, setSelectedSeat] = useState<any>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
-  // Fetch rows with seats
+  // Mark seat absent (Gabbai)
+  const markSeatAbsentMutation = useMutation({
+    mutationFn: async (seat: any) => {
+      const { error } = await supabase.from("absences").insert({
+        profile_id: seat.assigned_to,
+        synagogue_id: synagogueId,
+        shabbat_date: shabbatDate,
+        seat_id: seat.id,
+        marked_by: currentUserProfileId,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
+      setSelectedSeat(null);
+      toast({ title: "סטטוס המקום עודכן" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    },
+  });
+
+  // Cancel seat absence (Gabbai)
+  const cancelSeatAbsenceMutation = useMutation({
+    mutationFn: async (seat: any) => {
+      const { error } = await supabase.from("absences").delete()
+        .eq("profile_id", seat.assigned_to)
+        .eq("synagogue_id", synagogueId)
+        .eq("shabbat_date", shabbatDate)
+        .eq("seat_id", seat.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
+      setSelectedSeat(null);
+      toast({ title: "סטטוס המקום עודכן" });
+    },
+  });
+
   const { data: rows, isLoading } = useQuery({
     queryKey: ["seat_rows", sectionId],
     queryFn: async () => {
@@ -455,10 +503,11 @@ function AbsenceSeatingMap({
     let total = 0, occupied = 0, available = 0, unassigned = 0;
     rows.forEach((row) => {
       row.seats?.forEach((seat: any) => {
+        if (seat.element_type) return; // skip structural/empty
         total++;
         if (!seat.assigned_to) {
           unassigned++;
-        } else if (absentProfileIds.has(seat.assigned_to)) {
+        } else if (absentSeatIds.has(seat.id)) {
           available++;
         } else {
           occupied++;
@@ -466,7 +515,7 @@ function AbsenceSeatingMap({
       });
     });
     return { total, occupied, available, unassigned };
-  }, [rows, absentProfileIds]);
+  }, [rows, absentSeatIds]);
 
   if (isLoading) {
     return <p className="text-muted-foreground text-center py-4">טוען...</p>;
@@ -499,8 +548,13 @@ function AbsenceSeatingMap({
             <span className="text-xs text-muted-foreground">שורה {row.row_number}</span>
             <div className="flex flex-wrap gap-1.5 justify-center">
               {row.seats?.map((seat: any) => {
+                if (seat.element_type === 'empty') {
+                  return <div key={seat.id} className="w-14 h-14 pointer-events-none" />;
+                }
+                if (seat.element_type) return null;
+
                 const isAssigned = !!seat.assigned_to;
-                const isAbsent = isAssigned && absentProfileIds.has(seat.assigned_to);
+                const isAbsent = isAssigned && absentSeatIds.has(seat.id);
                 const isCurrentUser = isAssigned && seat.assigned_to === currentUserProfileId;
                 const assignedName = seat.profiles?.full_name;
 
@@ -568,7 +622,7 @@ function AbsenceSeatingMap({
                     </p>
                     <p>
                       <strong>סטטוס:</strong>{" "}
-                      {absentProfileIds.has(selectedSeat.assigned_to) ? (
+                      {absentSeatIds.has(selectedSeat.id) ? (
                         <Badge variant="outline" className="bg-success/10 text-success border-success/30">
                           <CheckCircle2 className="h-3 w-3 ml-1" />
                           פנוי (נעדר)
@@ -580,6 +634,29 @@ function AbsenceSeatingMap({
                         </Badge>
                       )}
                     </p>
+                    <div className="pt-2">
+                      {absentSeatIds.has(selectedSeat.id) ? (
+                        <Button
+                          variant="outline"
+                          className="w-full gap-2 border-success text-success"
+                          onClick={() => cancelSeatAbsenceMutation.mutate(selectedSeat)}
+                          disabled={cancelSeatAbsenceMutation.isPending}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          בטל היעדרות למקום זה
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          className="w-full gap-2 border-destructive text-destructive"
+                          onClick={() => markSeatAbsentMutation.mutate(selectedSeat)}
+                          disabled={markSeatAbsentMutation.isPending}
+                        >
+                          <CalendarOff className="h-4 w-4" />
+                          סמן מקום זה כפנוי (נעדר)
+                        </Button>
+                      )}
+                    </div>
                   </>
                 ) : (
                   <p className="text-muted-foreground">

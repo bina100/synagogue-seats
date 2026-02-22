@@ -96,24 +96,23 @@ export default function SeatingMap() {
     enabled: !!synagogueId,
   });
 
-  // Fetch current user's absence for upcoming Shabbat
-  const { data: myAbsence } = useQuery({
-    queryKey: ["my_absence", synagogueId, profile?.id, nextShabbat],
+  // Fetch current user's absences for upcoming Shabbat (per-seat)
+  const { data: myAbsences } = useQuery({
+    queryKey: ["my_absences", synagogueId, profile?.id, nextShabbat],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("absences")
-        .select("id")
+        .select("id, seat_id")
         .eq("profile_id", profile!.id)
         .eq("synagogue_id", synagogueId!)
-        .eq("shabbat_date", nextShabbat)
-        .maybeSingle();
+        .eq("shabbat_date", nextShabbat);
       if (error) throw error;
       return data;
     },
     enabled: !!synagogueId && !!profile?.id,
   });
 
-  const isAbsent = !!myAbsence;
+  const absentSeatIds = new Set((myAbsences ?? []).map(a => a.seat_id).filter(Boolean));
 
   // Assign mutation
   const assignMutation = useMutation({
@@ -129,18 +128,19 @@ export default function SeatingMap() {
     },
   });
 
-  // Insert absence mutation
+  // Insert absence mutation (per-seat)
   const insertAbsenceMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (seatId: string) => {
       const { error } = await supabase.from("absences").insert({
         profile_id: profile!.id,
         synagogue_id: synagogueId!,
         shabbat_date: nextShabbat,
-      });
+        seat_id: seatId,
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my_absence", synagogueId] });
+      queryClient.invalidateQueries({ queryKey: ["my_absences", synagogueId] });
       toast({ title: "היעדרות דווחה בהצלחה" });
     },
     onError: (e: Error) => {
@@ -148,19 +148,20 @@ export default function SeatingMap() {
     },
   });
 
-  // Delete absence mutation
+  // Delete absence mutation (per-seat)
   const deleteAbsenceMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (seatId: string) => {
       const { error } = await supabase
         .from("absences")
         .delete()
         .eq("profile_id", profile!.id)
         .eq("synagogue_id", synagogueId!)
-        .eq("shabbat_date", nextShabbat);
+        .eq("shabbat_date", nextShabbat)
+        .eq("seat_id", seatId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my_absence", synagogueId] });
+      queryClient.invalidateQueries({ queryKey: ["my_absences", synagogueId] });
       toast({ title: "ההיעדרות בוטלה בהצלחה" });
     },
     onError: (e: Error) => {
@@ -175,13 +176,13 @@ export default function SeatingMap() {
     [assignMutation]
   );
 
-  const handleToggleAbsence = useCallback(() => {
-    if (isAbsent) {
-      deleteAbsenceMutation.mutate();
+  const handleToggleAbsence = useCallback((seatId: string) => {
+    if (absentSeatIds.has(seatId)) {
+      deleteAbsenceMutation.mutate(seatId);
     } else {
-      insertAbsenceMutation.mutate();
+      insertAbsenceMutation.mutate(seatId);
     }
-  }, [isAbsent, deleteAbsenceMutation, insertAbsenceMutation]);
+  }, [absentSeatIds, deleteAbsenceMutation, insertAbsenceMutation]);
 
   // ========== Excel Import ==========
   const [importOpen, setImportOpen] = useState(false);
@@ -417,7 +418,7 @@ export default function SeatingMap() {
                           }
 
                           const displaySeats = row.seats?.filter(
-                            (s: any) => !s.element_type || s.element_type === "amud"
+                            (s: any) => !s.element_type || s.element_type === "amud" || s.element_type === "empty"
                           ) || [];
 
                           const regularSeats = displaySeats.filter(
@@ -434,8 +435,8 @@ export default function SeatingMap() {
                                   canManage={canManage}
                                   onAssign={handleAssign}
                                   currentUserProfileId={profile?.id}
-                                  isAbsent={seat.assigned_to === profile?.id ? isAbsent : undefined}
-                                  onToggleAbsence={seat.assigned_to === profile?.id ? handleToggleAbsence : undefined}
+                                  isAbsent={seat.assigned_to === profile?.id ? absentSeatIds.has(seat.id) : undefined}
+                                  onToggleAbsence={seat.assigned_to === profile?.id ? () => handleToggleAbsence(seat.id) : undefined}
                                 />
                               ))}
                             </div>

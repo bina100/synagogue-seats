@@ -32,6 +32,11 @@ interface SeatCellProps {
 export default function SeatCell({ seat, members, canManage, onAssign, currentUserProfileId, isAbsent, onToggleAbsence }: SeatCellProps) {
   const [open, setOpen] = useState(false);
 
+  // Empty cell = invisible spacer for grid alignment
+  if (seat.element_type === 'empty') {
+    return <div className="w-14 h-14 sm:w-16 sm:h-16 pointer-events-none" />;
+  }
+
   // Structural element
   if (seat.element_type) {
     return <StructuralElement type={seat.element_type} />;
