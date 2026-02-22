@@ -73,8 +73,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const toAsciiEmail = (name: string): string => {
+    return Array.from(name.toLowerCase().trim()).map(c => {
+      const code = c.charCodeAt(0);
+      if ((code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || c === '_' || c === '.' || c === '-') {
+        return c;
+      }
+      if (c === ' ') return '_';
+      return code.toString(16);
+    }).join('');
+  };
+
   const signUp = async (username: string, password: string, fullName: string) => {
-    const email = `${username.toLowerCase().replace(/\s/g, "_")}@synagogue.local`;
+    const email = `${toAsciiEmail(username)}@synagogue.local`;
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -85,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (username: string, password: string) => {
-    const email = `${username.toLowerCase().replace(/\s/g, "_")}@synagogue.local`;
+    const email = `${toAsciiEmail(username)}@synagogue.local`;
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message };
     return { error: null };

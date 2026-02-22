@@ -25,6 +25,19 @@ interface ImportPayload {
   sections: SectionData[];
 }
 
+// Convert any string (including Hebrew) to ASCII-safe email local part
+function toAsciiEmail(name: string): string {
+  return Array.from(name.toLowerCase().trim()).map(c => {
+    const code = c.charCodeAt(0);
+    // Keep ASCII alphanumeric, underscore, dot, dash
+    if ((code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || c === '_' || c === '.' || c === '-') {
+      return c;
+    }
+    if (c === ' ') return '_';
+    return code.toString(16);
+  }).join('');
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -178,7 +191,7 @@ Deno.serve(async (req: Request) => {
               stats.matched++;
             } else {
               // Auto-create user - email matches frontend signIn logic exactly
-              const email = `${cleanedName.replace(/\s/g, "_")}@synagogue.local`;
+              const email = `${toAsciiEmail(cleanedName)}@synagogue.local`;
 
               console.log("Attempting to create user:", cleanedName, "with email:", email);
 
