@@ -24,11 +24,11 @@ import { parseSeatingExcel, type ParsedSection } from "@/lib/parseSeatingExcel";
 
 export default function SeatingMap() {
   const { id: synagogueId } = useParams<{ id: string }>();
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, profile, roles } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const canManage = isSuperAdmin || false;
+  const canManage = isSuperAdmin || roles.some((r) => r.role === "gabbai" && r.synagogue_id === synagogueId);
 
   // Fetch synagogue
   const { data: synagogue } = useQuery({
@@ -388,6 +388,7 @@ export default function SeatingMap() {
                                     members={members || []}
                                     canManage={canManage}
                                     onAssign={handleAssign}
+                                    currentUserProfileId={profile?.id}
                                   />
                                 ))}
                               </div>

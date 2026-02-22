@@ -23,9 +23,10 @@ interface SeatCellProps {
   members: any[];
   canManage: boolean;
   onAssign: (seatId: string, profileId: string | null) => void;
+  currentUserProfileId?: string;
 }
 
-export default function SeatCell({ seat, members, canManage, onAssign }: SeatCellProps) {
+export default function SeatCell({ seat, members, canManage, onAssign, currentUserProfileId }: SeatCellProps) {
   const [open, setOpen] = useState(false);
 
   // Structural element
@@ -35,6 +36,7 @@ export default function SeatCell({ seat, members, canManage, onAssign }: SeatCel
 
   const isAssigned = !!seat.assigned_to;
   const assignedProfile = seat.profiles;
+  const isCurrentUser = isAssigned && seat.assigned_to === currentUserProfileId;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -42,11 +44,13 @@ export default function SeatCell({ seat, members, canManage, onAssign }: SeatCel
         <button
           className={`
             relative flex flex-col items-center justify-center
-            w-11 h-11 sm:w-12 sm:h-12 rounded-md border text-xs font-medium transition-all
+            w-14 h-14 sm:w-16 sm:h-16 rounded-md border text-xs font-medium transition-all
             ${
-              isAssigned
-                ? "bg-primary/15 border-primary/40 text-primary hover:bg-primary/25"
-                : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
+              isCurrentUser
+                ? "bg-teal-100 border-teal-500 text-teal-900 border-2 font-bold hover:bg-teal-200"
+                : isAssigned
+                  ? "bg-primary/15 border-primary/40 text-primary hover:bg-primary/25"
+                  : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
             }
             ${canManage ? "cursor-pointer" : "cursor-default"}
           `}
@@ -54,9 +58,9 @@ export default function SeatCell({ seat, members, canManage, onAssign }: SeatCel
           title={isAssigned ? assignedProfile?.full_name : `מקום ${seat.seat_number}`}
         >
           <Armchair className="h-3.5 w-3.5 mb-0.5" />
-          <span className="text-[9px] leading-tight truncate max-w-[40px]">
+          <span className="text-[8px] leading-tight text-center whitespace-normal break-words max-w-[44px]">
             {isAssigned
-              ? assignedProfile?.full_name?.split(" ")[0] || "תפוס"
+              ? assignedProfile?.full_name || "תפוס"
               : seat.seat_number}
           </span>
         </button>
