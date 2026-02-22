@@ -1,25 +1,20 @@
 
-# Fix Print Layout: Unified Container, Page-Break Prevention, and Scaling
 
-## Overview
+# Fix Print Layout: Unified Grid on Single Page
 
-The print layout is breaking sections across pages because each `.print-map-container` div can trigger page breaks, and the `.print-only` container uses `display: block` instead of flex. Four changes are needed.
+## Problem
+
+The print output breaks individual seat rows/columns across pages because:
+- The `Card` wrapper inside `.print-map-container` adds padding/structure that triggers page breaks
+- The seat rows use `flex-wrap` which can split across pages
+- The zoom factor (0.7) may not be aggressive enough for large maps
+- The `break-inside: avoid` on wildcard `*` conflicts with the need for the container itself to stay unified
 
 ## Changes
 
-### 1. `src/pages/AbsenceManager.tsx` - Unified Print Container (line 440)
+### 1. `src/index.css` - Overhaul print rules (lines 158-199)
 
-Change the `.print-only` wrapper to use inline flex styles so all sections flow horizontally in one block:
-
-```tsx
-<div className="print-only" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '20px', justifyContent: 'center' }}>
-```
-
-This ensures all sections are siblings in a single flex row, wrapping as needed.
-
-### 2. `src/index.css` - Update `.print-only` rule (line 158-160)
-
-Change from `display: block` to `display: flex` with row wrapping and add scaling:
+Replace the current `.print-only`, page-break, and `.print-map-container` rules with:
 
 ```css
 .print-only {
@@ -28,36 +23,96 @@ Change from `display: block` to `display: flex` with row wrapping and add scalin
   flex-wrap: wrap !important;
   gap: 20px !important;
   justify-content: center !important;
-  width: 100% !important;
+  width: 100vw !important;
   overflow: visible !important;
-  zoom: 0.7;
+  zoom: 0.55;
 }
-```
 
-### 3. `src/index.css` - Aggressive page-break prevention (add after `.print-only`)
-
-```css
-.print-only *,
-.print-only section,
+/* Each section block must not split */
 .print-only .print-map-container {
   break-inside: avoid !important;
   page-break-inside: avoid !important;
+  break-before: auto !important;
+  break-after: auto !important;
+  flex-shrink: 0;
 }
 
+/* Remove all forced breaks from children */
 .print-only * {
   break-before: auto !important;
   break-after: auto !important;
 }
+
+/* Card inside print should be borderless and compact */
+.print-only .print-map-container > div {
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Rows must stay horizontal */
+.print-only .flex.flex-wrap {
+  flex-wrap: nowrap !important;
+  gap: 2px !important;
+}
+
+/* Compact seats for print */
+.print-seat {
+  width: 40px !important;
+  height: 40px !important;
+  font-size: 7px !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Hide section title if only one section */
+.print-only .print-map-container:only-child .print-section-title {
+  display: none !important;
+}
+
+/* Section titles should not force page breaks */
+.print-section-title {
+  page-break-before: auto !important;
+  page-break-after: auto !important;
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+  margin: 4px 0;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 2px;
+}
 ```
 
-### 4. `src/index.css` - Keep `.print-map-container` but remove redundant page-break
+Key differences from current:
+- `width: 100vw` instead of `100%` to use full page width
+- `zoom: 0.55` (more aggressive shrink) to fit large maps
+- Seat rows set to `flex-wrap: nowrap` so columns stay inline (mirrors screen view)
+- Smaller seats (40px instead of 44px) and gaps (2px instead of 1.5) for compactness
+- Card borders/shadows removed in print for clean look
+- Section titles don't force page breaks; hidden when only one section
 
-The `.print-map-container` rule (line 171-180) stays but the `page-break-inside: avoid` is now covered by the wildcard rule above. No change needed here as the aggressive rule covers it.
+### 2. `src/pages/AbsenceManager.tsx` - Line 601
 
-## Summary of file changes
+Change the row flex container to use a print-specific class so the CSS rule can target it precisely. Add `print-seat-row` class:
 
-| File | Lines | Change |
-|---|---|---|
-| `src/index.css` | 158-160 | Change `.print-only` from `display: block` to flex layout with `zoom: 0.7` |
-| `src/index.css` | After 160 | Add aggressive page-break prevention rules for `.print-only *` |
-| `src/pages/AbsenceManager.tsx` | 440 | Add inline flex styles to `.print-only` div for unified container |
+```tsx
+<div className="flex flex-wrap gap-1.5 justify-center print-seat-row">
+```
+
+Then in CSS, target `.print-seat-row` instead of `.flex.flex-wrap`:
+
+```css
+.print-only .print-seat-row {
+  flex-wrap: nowrap !important;
+  gap: 2px !important;
+}
+```
+
+This is cleaner than targeting generic `.flex.flex-wrap`.
+
+## Files to Change
+
+| File | Change |
+|---|---|
+| `src/index.css` | Replace print rules (lines 158-199) with unified grid, aggressive scaling, nowrap rows, compact seats |
+| `src/pages/AbsenceManager.tsx` | Add `print-seat-row` class to seat row container (line 601) |
