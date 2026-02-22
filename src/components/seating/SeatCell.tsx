@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -24,9 +25,11 @@ interface SeatCellProps {
   canManage: boolean;
   onAssign: (seatId: string, profileId: string | null) => void;
   currentUserProfileId?: string;
+  isAbsent?: boolean;
+  onToggleAbsence?: () => void;
 }
 
-export default function SeatCell({ seat, members, canManage, onAssign, currentUserProfileId }: SeatCellProps) {
+export default function SeatCell({ seat, members, canManage, onAssign, currentUserProfileId, isAbsent, onToggleAbsence }: SeatCellProps) {
   const [open, setOpen] = useState(false);
 
   // Structural element
@@ -52,11 +55,15 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
                   ? "bg-primary/15 border-primary/40 text-primary hover:bg-primary/25"
                   : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
             }
-            ${canManage ? "cursor-pointer" : "cursor-default"}
+            ${canManage || isCurrentUser ? "cursor-pointer" : "cursor-default"}
           `}
-          disabled={!canManage}
+          disabled={!canManage && !isCurrentUser}
           title={isAssigned ? assignedProfile?.full_name : `מקום ${seat.seat_number}`}
         >
+          {/* Red dot for absent user */}
+          {isCurrentUser && isAbsent && (
+            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white" />
+          )}
           <Armchair className="h-3.5 w-3.5 mb-0.5" />
           <span className="text-[8px] leading-tight text-center whitespace-normal break-words max-w-[44px]">
             {isAssigned
@@ -65,6 +72,8 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
           </span>
         </button>
       </DialogTrigger>
+
+      {/* Admin assign dialog */}
       {canManage && (
         <DialogContent>
           <DialogHeader>
@@ -112,6 +121,34 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
                 </SelectContent>
               </Select>
             </div>
+          </div>
+        </DialogContent>
+      )}
+
+      {/* Regular member absence dialog */}
+      {!canManage && isCurrentUser && (
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{isAbsent ? "ביטול היעדרות" : "דיווח היעדרות"}</DialogTitle>
+            <DialogDescription>
+              {isAbsent
+                ? "סימנת שאינך מגיע השבת. האם ברצונך לבטל את ההיעדרות?"
+                : "האם ברצונך לעדכן את הגבאי שאינך מגיע השבת / בחג הקרוב? המקום שלך יסומן כפנוי לאורחים."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 justify-end mt-4">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              ביטול
+            </Button>
+            <Button
+              variant={isAbsent ? "default" : "destructive"}
+              onClick={() => {
+                onToggleAbsence?.();
+                setOpen(false);
+              }}
+            >
+              {isAbsent ? "אני מגיע (בטל היעדרות)" : "כן, איני מגיע"}
+            </Button>
           </div>
         </DialogContent>
       )}
