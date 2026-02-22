@@ -390,6 +390,7 @@ export default function AbsenceManager() {
                 sectionId={activeSectionId}
                 synagogueId={synagogueId!}
                 absentProfileIds={absentProfileIds}
+                currentUserProfileId={myProfileId}
               />
             )}
           </>
@@ -420,10 +421,12 @@ function AbsenceSeatingMap({
   sectionId,
   synagogueId,
   absentProfileIds,
+  currentUserProfileId,
 }: {
   sectionId: string;
   synagogueId: string;
   absentProfileIds: Set<string>;
+  currentUserProfileId?: string;
 }) {
   const [selectedSeat, setSelectedSeat] = useState<any>(null);
 
@@ -498,13 +501,18 @@ function AbsenceSeatingMap({
               {row.seats?.map((seat: any) => {
                 const isAssigned = !!seat.assigned_to;
                 const isAbsent = isAssigned && absentProfileIds.has(seat.assigned_to);
+                const isCurrentUser = isAssigned && seat.assigned_to === currentUserProfileId;
                 const assignedName = seat.profiles?.full_name;
 
                 let bgClass: string;
                 let borderClass: string;
                 let textClass: string;
 
-                if (!isAssigned) {
+                if (isCurrentUser) {
+                  bgClass = "bg-teal-100";
+                  borderClass = "border-teal-500";
+                  textClass = "text-teal-900 font-bold";
+                } else if (!isAssigned) {
                   bgClass = "bg-muted/50";
                   borderClass = "border-border";
                   textClass = "text-muted-foreground";
@@ -525,9 +533,9 @@ function AbsenceSeatingMap({
                     onClick={() => setSelectedSeat(seat)}
                   >
                     <Armchair className="h-4 w-4 mb-0.5" />
-                    <span className="text-[10px] leading-tight truncate max-w-[48px]">
+                    <span className="text-[8px] leading-tight text-center whitespace-normal break-words max-w-[48px]">
                       {isAssigned
-                        ? assignedName?.split(" ")[0] || "תפוס"
+                        ? assignedName || "תפוס"
                         : seat.seat_number}
                     </span>
                     {isAbsent && (

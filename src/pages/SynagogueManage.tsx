@@ -21,7 +21,7 @@ import { Plus, UserPlus, Users, LayoutGrid, Trash2, Shield, User, Armchair, Cale
 
 export default function SynagogueManage() {
   const { id } = useParams<{ id: string }>();
-  const { profile, isSuperAdmin } = useAuth();
+  const { profile, isSuperAdmin, roles } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -41,7 +41,7 @@ export default function SynagogueManage() {
   });
 
   // Check if user can manage
-  const canManage = isSuperAdmin || false; // Will also check gabbai role
+  const canManage = isSuperAdmin || roles.some((r) => r.role === "gabbai" && r.synagogue_id === id);
 
   return (
     <AppLayout title={synagogue?.name || "בית כנסת"} showBack>
@@ -59,6 +59,7 @@ export default function SynagogueManage() {
           </Button>
         </Link>
       </div>
+      {canManage && (
       <Tabs defaultValue="members" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="members" className="gap-2">
@@ -85,6 +86,7 @@ export default function SynagogueManage() {
           <SectionsTab synagogueId={id!} canManage={canManage} />
         </TabsContent>
       </Tabs>
+      )}
     </AppLayout>
   );
 }
