@@ -232,9 +232,15 @@ export default function AbsenceManager() {
 
   return (
     <AppLayout title={`היעדרויות - ${synagogue?.name || ""}`} showBack>
+      {/* Print-only header */}
+      <div className="print-header">
+        <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>לוח היעדרויות ושיבוץ אורחים</h1>
+        <p style={{ fontSize: '14px', margin: '4px 0 0' }}>{synagogue?.name} — {formatHebrewDate(shabbatDate)}</p>
+      </div>
+
       <div className="space-y-4">
         {/* Shabbat info + personal action */}
-        <Card>
+        <Card className="no-print">
           <CardContent className="py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-center sm:text-right">
               <p className="text-sm text-muted-foreground">שבת קרובה</p>
@@ -268,7 +274,7 @@ export default function AbsenceManager() {
 
         {/* Upcoming holidays */}
         {holidays.length > 0 && (
-          <Card>
+          <Card className="no-print">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Star className="h-4 w-4 text-warning" />
@@ -289,7 +295,7 @@ export default function AbsenceManager() {
 
         {/* Gabbai controls */}
         {isGabbai && (
-          <Card>
+          <Card className="no-print">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">פעולות גבאי</CardTitle>
             </CardHeader>
@@ -312,7 +318,7 @@ export default function AbsenceManager() {
         )}
 
         {/* Mark for other dialog */}
-        <Dialog open={markForOtherOpen} onOpenChange={setMarkForOtherOpen}>
+        <Dialog open={markForOtherOpen} onOpenChange={setMarkForOtherOpen} >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>סמן היעדרות למתפלל</DialogTitle>
@@ -345,7 +351,7 @@ export default function AbsenceManager() {
 
         {/* Absence list */}
         {isGabbai && absences && absences.length > 0 && (
-          <Card>
+          <Card className="no-print">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <XCircle className="h-4 w-4 text-destructive" />
@@ -377,7 +383,7 @@ export default function AbsenceManager() {
         {/* Section tabs */}
         {sections && sections.length > 0 && (
           <>
-            <div className="flex gap-2 overflow-x-auto pb-2">
+            <div className="flex gap-2 overflow-x-auto pb-2 no-print">
               {sections.map((s) => (
                 <Button
                   key={s.id}
@@ -390,15 +396,34 @@ export default function AbsenceManager() {
               ))}
             </div>
 
-            {activeSectionId && (
-              <AbsenceSeatingMap
-                sectionId={activeSectionId}
-                synagogueId={synagogueId!}
-                absentSeatIds={absentSeatIds}
-                currentUserProfileId={myProfileId}
-                shabbatDate={shabbatDate}
-              />
-            )}
+            {/* Screen: show active section only */}
+            <div className="no-print">
+              {activeSectionId && (
+                <AbsenceSeatingMap
+                  sectionId={activeSectionId}
+                  synagogueId={synagogueId!}
+                  absentSeatIds={absentSeatIds}
+                  currentUserProfileId={myProfileId}
+                  shabbatDate={shabbatDate}
+                />
+              )}
+            </div>
+
+            {/* Print: show ALL sections */}
+            <div className="print-only">
+              {sections.map((s) => (
+                <div key={s.id} className="print-map-container">
+                  <div className="print-section-title">{s.name}</div>
+                  <AbsenceSeatingMap
+                    sectionId={s.id}
+                    synagogueId={synagogueId!}
+                    absentSeatIds={absentSeatIds}
+                    currentUserProfileId={myProfileId}
+                    shabbatDate={shabbatDate}
+                  />
+                </div>
+              ))}
+            </div>
           </>
         )}
 
@@ -583,7 +608,8 @@ function AbsenceSeatingMap({
                 return (
                   <button
                     key={seat.id}
-                    className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-lg border-2 text-xs font-medium transition-all ${bgClass} ${borderClass} ${textClass} hover:opacity-80`}
+                    className={`print-seat relative flex flex-col items-center justify-center w-14 h-14 rounded-lg border-2 text-xs font-medium transition-all ${bgClass} ${borderClass} ${textClass} hover:opacity-80`}
+                    style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as React.CSSProperties}
                     onClick={() => setSelectedSeat(seat)}
                   >
                     <Armchair className="h-4 w-4 mb-0.5" />
