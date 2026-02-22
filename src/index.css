@@ -131,6 +131,11 @@
 
   /* Print styles */
   @media print {
+    @page {
+      size: landscape;
+      margin: 10mm;
+    }
+
     header, nav, .no-print, [role="dialog"] {
       display: none !important;
     }
@@ -164,6 +169,11 @@
     }
 
     .print-map-container {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      flex-direction: row !important;
+      gap: 20px !important;
+      justify-content: center !important;
       width: 100% !important;
       overflow: visible !important;
       page-break-inside: avoid;
