@@ -53,7 +53,7 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
       <DialogTrigger asChild>
         <button
           className={`
-            relative flex flex-col items-center justify-center
+            print-seat relative flex flex-col items-center justify-center
             w-14 h-14 sm:w-16 sm:h-16 rounded-md border text-xs font-medium transition-all
             ${
               isCurrentUser
