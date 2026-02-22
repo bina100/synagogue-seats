@@ -22,6 +22,16 @@ import SeatCell from "@/components/seating/SeatCell";
 import StructuralElement from "@/components/seating/StructuralElement";
 import { parseSeatingExcel, type ParsedSection } from "@/lib/parseSeatingExcel";
 
+// Get next Shabbat date (upcoming Saturday)
+function getNextShabbat(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const daysUntilShabbat = day === 6 ? 0 : (6 - day + 7) % 7 || 7;
+  const shabbat = new Date(now);
+  shabbat.setDate(now.getDate() + daysUntilShabbat);
+  return shabbat.toISOString().split("T")[0];
+}
+
 export default function SeatingMap() {
   const { id: synagogueId } = useParams<{ id: string }>();
   const { isSuperAdmin, profile, roles } = useAuth();
@@ -29,6 +39,7 @@ export default function SeatingMap() {
   const queryClient = useQueryClient();
 
   const canManage = isSuperAdmin || roles.some((r) => r.role === "gabbai" && r.synagogue_id === synagogueId);
+  const nextShabbat = getNextShabbat();
 
   // Fetch synagogue
   const { data: synagogue } = useQuery({
@@ -56,7 +67,6 @@ export default function SeatingMap() {
         .order("sort_order");
       if (error) throw error;
 
-      // Sort rows and seats within each section
       return data?.map((section) => ({
         ...section,
         seat_rows: (section.seat_rows as any[])
@@ -86,6 +96,25 @@ export default function SeatingMap() {
     enabled: !!synagogueId,
   });
 
+  // Fetch current user's absence for upcoming Shabbat
+  const { data: myAbsence } = useQuery({
+    queryKey: ["my_absence", synagogueId, profile?.id, nextShabbat],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("absences")
+        .select("id")
+        .eq("profile_id", profile!.id)
+        .eq("synagogue_id", synagogueId!)
+        .eq("shabbat_date", nextShabbat)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!synagogueId && !!profile?.id,
+  });
+
+  const isAbsent = !!myAbsence;
+
   // Assign mutation
   const assignMutation = useMutation({
     mutationFn: async ({ seatId, profileId }: { seatId: string; profileId: string | null }) => {
@@ -100,12 +129,59 @@ export default function SeatingMap() {
     },
   });
 
+  // Insert absence mutation
+  const insertAbsenceMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("absences").insert({
+        profile_id: profile!.id,
+        synagogue_id: synagogueId!,
+        shabbat_date: nextShabbat,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my_absence", synagogueId] });
+      toast({ title: "היעדרות דווחה בהצלחה" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    },
+  });
+
+  // Delete absence mutation
+  const deleteAbsenceMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("absences")
+        .delete()
+        .eq("profile_id", profile!.id)
+        .eq("synagogue_id", synagogueId!)
+        .eq("shabbat_date", nextShabbat);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my_absence", synagogueId] });
+      toast({ title: "ההיעדרות בוטלה בהצלחה" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    },
+  });
+
   const handleAssign = useCallback(
     (seatId: string, profileId: string | null) => {
       assignMutation.mutate({ seatId, profileId });
     },
     [assignMutation]
   );
+
+  const handleToggleAbsence = useCallback(() => {
+    if (isAbsent) {
+      deleteAbsenceMutation.mutate();
+    } else {
+      insertAbsenceMutation.mutate();
+    }
+  }, [isAbsent, deleteAbsenceMutation, insertAbsenceMutation]);
 
   // ========== Excel Import ==========
   const [importOpen, setImportOpen] = useState(false);
@@ -182,29 +258,12 @@ export default function SeatingMap() {
     URL.revokeObjectURL(url);
   };
 
-  // Calculate max rows across all sections for grid alignment
-  const maxRows = sections?.reduce(
-    (max, s) => Math.max(max, s.seat_rows?.length || 0),
-    0
-  ) || 0;
-
-  // Check for structural elements spanning across sections (aron_kodesh at top, bima in middle)
-  // We detect aron_kodesh and bima from the first row of the first section that has them
+  // Check for structural elements
   const hasAronKodesh = sections?.some((s) =>
     s.seat_rows?.some((r: any) =>
       r.seats?.some((seat: any) => seat.element_type === "aron_kodesh")
     )
   );
-  const bimaRowIndex = (() => {
-    for (const s of sections || []) {
-      for (let i = 0; i < (s.seat_rows?.length || 0); i++) {
-        if (s.seat_rows[i]?.seats?.some((seat: any) => seat.element_type === "bima")) {
-          return i;
-        }
-      }
-    }
-    return -1;
-  })();
 
   if (isLoading) {
     return (
@@ -301,7 +360,11 @@ export default function SeatingMap() {
           <Card>
             <CardContent className="p-3 sm:p-4">
               {/* Legend */}
-              <div className="flex gap-4 text-xs text-muted-foreground justify-center pb-3 mb-3 border-b">
+              <div className="flex gap-4 text-xs text-muted-foreground justify-center pb-3 mb-3 border-b flex-wrap">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 rounded bg-teal-100 border-2 border-teal-500" />
+                  המקום שלי
+                </span>
                 <span className="flex items-center gap-1">
                   <span className="inline-block h-3 w-3 rounded bg-primary/20 border border-primary/40" />
                   תפוס
@@ -324,87 +387,70 @@ export default function SeatingMap() {
               {/* Scrollable floor plan */}
               <div className="overflow-x-auto pb-2">
                 <div className="flex gap-1 min-w-max justify-center">
-                  {sections.map((section, sIdx) => {
-                    // Check if this section has pillar (amud) between it and the next
-                    const hasAmudBefore = sIdx > 0 && sections.some((s) =>
-                      s.seat_rows?.some((r: any) =>
-                        r.seats?.some(
-                          (seat: any) => seat.element_type === "amud"
-                        )
-                      )
-                    );
-
-                    return (
-                      <div key={section.id} className="flex gap-1">
-                        {/* Section column */}
-                        <div className="flex flex-col items-center gap-1">
-                          {/* Section header */}
-                          <div className="text-[10px] font-bold text-muted-foreground mb-1 whitespace-nowrap">
-                            {section.name}
-                          </div>
-
-                          {/* Rows */}
-                          {section.seat_rows?.map((row: any, rowIdx: number) => {
-                            // Check for bima row - render bima element spanning across
-                            const isBimaRow = row.seats?.every(
-                              (s: any) => s.element_type === "bima" || (!s.assigned_to && !s.element_type && !s.name)
-                            ) && row.seats?.some((s: any) => s.element_type === "bima");
-
-                            if (isBimaRow && sIdx === Math.floor((sections?.length || 0) / 2)) {
-                              // Render bima only in the middle section
-                              return (
-                                <div key={row.id} className="flex items-center justify-center py-2">
-                                  <div className="flex items-center justify-center rounded-xl border-2 border-accent-foreground/20 bg-accent px-6 py-2 text-xs font-bold text-accent-foreground shadow-sm">
-                                    בימה
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            if (isBimaRow) {
-                              // Empty space for other sections at bima row
-                              return <div key={row.id} className="h-10" />;
-                            }
-
-                            // Filter out structural elements from seat display
-                            const displaySeats = row.seats?.filter(
-                              (s: any) => !s.element_type || s.element_type === "amud"
-                            ) || [];
-
-                            // Check if row has amud
-                            const amudSeats = displaySeats.filter(
-                              (s: any) => s.element_type === "amud"
-                            );
-                            const regularSeats = displaySeats.filter(
-                              (s: any) => s.element_type !== "amud" && s.element_type !== "aron_kodesh" && s.element_type !== "bima"
-                            );
-
-                            return (
-                              <div key={row.id} className="flex gap-1 items-center">
-                                {regularSeats.map((seat: any) => (
-                                  <SeatCell
-                                    key={seat.id}
-                                    seat={seat}
-                                    members={members || []}
-                                    canManage={canManage}
-                                    onAssign={handleAssign}
-                                    currentUserProfileId={profile?.id}
-                                  />
-                                ))}
-                              </div>
-                            );
-                          })}
+                  {sections.map((section, sIdx) => (
+                    <div key={section.id} className="flex gap-1">
+                      {/* Section column */}
+                      <div className="flex flex-col items-center gap-1">
+                        {/* Section header */}
+                        <div className="text-[10px] font-bold text-muted-foreground mb-1 whitespace-nowrap">
+                          {section.name}
                         </div>
 
-                        {/* Separator / amud between sections */}
-                        {sIdx < (sections?.length || 0) - 1 && (
-                          <div className="flex flex-col items-center justify-center mx-0.5">
-                            <div className="w-px h-full bg-border" />
-                          </div>
-                        )}
+                        {/* Rows */}
+                        {section.seat_rows?.map((row: any, rowIdx: number) => {
+                          const isBimaRow = row.seats?.every(
+                            (s: any) => s.element_type === "bima" || (!s.assigned_to && !s.element_type && !s.name)
+                          ) && row.seats?.some((s: any) => s.element_type === "bima");
+
+                          if (isBimaRow && sIdx === Math.floor((sections?.length || 0) / 2)) {
+                            return (
+                              <div key={row.id} className="flex items-center justify-center py-2">
+                                <div className="flex items-center justify-center rounded-xl border-2 border-accent-foreground/20 bg-accent px-6 py-2 text-xs font-bold text-accent-foreground shadow-sm">
+                                  בימה
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (isBimaRow) {
+                            return <div key={row.id} className="h-10" />;
+                          }
+
+                          const displaySeats = row.seats?.filter(
+                            (s: any) => !s.element_type || s.element_type === "amud"
+                          ) || [];
+
+                          const regularSeats = displaySeats.filter(
+                            (s: any) => s.element_type !== "amud" && s.element_type !== "aron_kodesh" && s.element_type !== "bima"
+                          );
+
+                          return (
+                            <div key={row.id} className="flex gap-1 items-center">
+                              {regularSeats.map((seat: any) => (
+                                <SeatCell
+                                  key={seat.id}
+                                  seat={seat}
+                                  members={members || []}
+                                  canManage={canManage}
+                                  onAssign={handleAssign}
+                                  currentUserProfileId={profile?.id}
+                                  isAbsent={seat.assigned_to === profile?.id ? isAbsent : undefined}
+                                  onToggleAbsence={seat.assigned_to === profile?.id ? handleToggleAbsence : undefined}
+                                />
+                              ))}
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+
+                      {/* Separator between sections */}
+                      {sIdx < (sections?.length || 0) - 1 && (
+                        <div className="flex flex-col items-center justify-center mx-0.5">
+                          <div className="w-px h-full bg-border" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </CardContent>

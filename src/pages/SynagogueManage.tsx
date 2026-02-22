@@ -52,12 +52,14 @@ export default function SynagogueManage() {
             מפת מקומות ישיבה
           </Button>
         </Link>
-        <Link to={`/synagogue/${id}/absences`} className="flex-1">
-          <Button className="w-full gap-2" variant="outline" size="lg">
-            <CalendarOff className="h-5 w-5" />
-            היעדרויות ולוח בקרה
-          </Button>
-        </Link>
+        {canManage && (
+          <Link to={`/synagogue/${id}/absences`} className="flex-1">
+            <Button className="w-full gap-2" variant="outline" size="lg">
+              <CalendarOff className="h-5 w-5" />
+              היעדרויות ולוח בקרה
+            </Button>
+          </Link>
+        )}
       </div>
       {canManage && (
       <Tabs defaultValue="members" className="space-y-4">
