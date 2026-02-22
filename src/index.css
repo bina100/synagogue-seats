@@ -136,8 +136,17 @@
       margin: 10mm;
     }
 
-    header, nav, .no-print, [role="dialog"] {
+    header, nav, .no-print, [role="dialog"], .print-floor-plan .border-b {
       display: none !important;
+    }
+
+    /* Override overflow scroll containers in print */
+    .overflow-x-auto, .overflow-auto, .overflow-y-auto {
+      overflow: visible !important;
+    }
+
+    .min-w-max {
+      min-width: 0 !important;
     }
 
     body {
