@@ -1,43 +1,48 @@
 
 
-# Fix: Display Failed User Errors + Add Edge Function Debug Logs
+# UI Updates: Role-Based Visibility, Seat Highlighting, Full Names
 
 ## Changes
 
-### 1. Edge Function (`supabase/functions/import-seating-map/index.ts`)
+### 1. Role-Based UI in `SynagogueManage.tsx`
 
-Add `console.log` debug statements at three key points:
-- Before `createUser`: log cleanedName and email
-- After `createUser`: log user ID or error message
-- After profile upsert: log profile ID or error message
+Currently `canManage` is `isSuperAdmin || false`. Need to also check gabbai role, and hide the management tabs (Members, Gabbais, Sections) from regular members.
 
-The existing code structure is already correct (try/catch, profileMap dedup, onConflict). The only addition is logging for debugging.
+- Import `useAuth` to get `roles` and check if user is a gabbai for this synagogue
+- Update `canManage = isSuperAdmin || roles.some(r => r.role === 'gabbai' && r.synagogue_id === id)`
+- Conditionally render the Tabs section only if `canManage` is true
+- Regular members only see the two link buttons (Seating Map + Absences)
 
-### 2. Frontend (`src/pages/SeatingMap.tsx`)
+### 2. Highlight User's Own Seats in `SeatCell.tsx`
 
-- Add `failedUsers` state: `useState<{ name: string; error: string }[]>([])`
-- Update `handleImport` (lines 151-158): set `failedUsers` from `stats.failed`, open the results dialog if either `createdUsers` or `failed` has items
-- Rename dialog state from `showCreatedUsers` to serve both created and failed users
-- Update the results dialog (lines 412-444): add a red/warning section below the success table showing each failed name and its exact error message
+- Add `currentUserProfileId?: string` prop to `SeatCellProps`
+- Check `seat.assigned_to === currentUserProfileId`
+- If true, apply turquoise styling: `bg-teal-100 border-teal-500 text-teal-900 border-2 font-bold`
+- Pass `profile?.id` from `SeatingMap.tsx` when rendering `SeatCell`
 
-### Technical Details
+### 3. Highlight User's Own Seats in `AbsenceManager.tsx`
 
-**Edge Function logging additions (3 lines):**
-```text
-Line ~181: console.log("Attempting to create user:", cleanedName, "email:", email);
-Line ~195: console.log("createUser result:", authData?.user?.id, "error:", createErr?.message);
-Line ~214: console.log("profile upsert result:", profileData?.id, "error:", profileErr?.message);
-```
+- Get `profile` from `useAuth()`
+- In the seat rendering loop (line ~503), add check: `const isCurrentUser = seat.assigned_to === profile?.id`
+- If `isCurrentUser`, override styling to turquoise (same classes as above), taking priority over absent/present colors
 
-**Frontend dialog update:**
-- Success section (green): shown when `createdUsers.length > 0` with table + CSV download
-- Error section (red): shown when `failedUsers.length > 0` with name + exact error message
-- Dialog title dynamically shows counts for both
+### 4. Show Full Names on Seats
 
-### Files
+**`SeatCell.tsx` (line 57-61):**
+- Change `assignedProfile?.full_name?.split(" ")[0]` to `assignedProfile?.full_name`
+- Update span classes: remove `truncate max-w-[40px]`, add `text-[8px] leading-tight text-center whitespace-normal break-words max-w-[44px]`
+- Increase button size slightly: `w-14 h-14 sm:w-16 sm:h-16`
+
+**`AbsenceManager.tsx` (line 528-531):**
+- Change `assignedName?.split(" ")[0]` to `assignedName`
+- Update span classes similarly for full name display
+
+## Files to Change
 
 | File | Change |
 |---|---|
-| `supabase/functions/import-seating-map/index.ts` | Add 3 console.log debug lines |
-| `src/pages/SeatingMap.tsx` | Add failedUsers state, update dialog trigger, add error section in dialog |
+| `src/pages/SynagogueManage.tsx` | Check gabbai role for `canManage`; hide tabs for regular members |
+| `src/components/seating/SeatCell.tsx` | Add `currentUserProfileId` prop; turquoise highlight for own seat; show full name |
+| `src/pages/SeatingMap.tsx` | Pass `profile?.id` to `SeatCell` |
+| `src/pages/AbsenceManager.tsx` | Turquoise highlight for own seat; show full name |
 
