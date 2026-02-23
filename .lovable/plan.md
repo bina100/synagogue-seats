@@ -1,26 +1,43 @@
 
-# גלילה אוטומטית למקום של המשתמש
 
-## מה ישתנה
+# תיקון גלילה אוטומטית למקום המשתמש
 
-כשמתפלל רגיל נכנס למפת המקומות, המפה תגלול אוטומטית כדי שהמקום שלו יופיע במרכז המסך - בלי צורך לחפש אותו ידנית.
+## הבעיה
 
-## איך זה עובד
+הגלילה לא עובדת בגלל בעיית תזמון: כשהנתונים של המפה נטענים, יכול להיות שהפרופיל של המשתמש (`profile?.id`) עדיין לא מוכן. במצב כזה, אף מקום לא מקבל את ה-ref, ולכן הגלילה לא מופעלת.
 
-ברגע שהמפה נטענת, המערכת מזהה את המקום המשויך למשתמש המחובר (המסומן בטורקיז) וגוללת אליו אוטומטית עם אנימציה חלקה.
+בנוסף, בדיקת `hasScrolled.current` בזמן הרינדור לא אמינה כי שינוי ב-ref לא גורם לרינדור מחדש.
 
-## שינויים טכניים
+## הפתרון
 
-### 1. `src/components/seating/SeatCell.tsx`
-- נוסיף `ref` callback למקום שמזוהה כמקום של המשתמש הנוכחי (`isCurrentUser`)
-- נעביר את ה-ref דרך prop חדש: `myRef`
+שינוי אחד בקובץ `src/pages/SeatingMap.tsx`:
 
-### 2. `src/pages/SeatingMap.tsx`
-- ניצור `useRef` שיצביע על אלמנט המקום של המשתמש
-- נוסיף `useEffect` שמפעיל `scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })` אחרי שהנתונים נטענים
-- נעביר את ה-ref ל-`SeatCell` רק עבור המקום הראשון שמשויך למשתמש
+1. **הוספת `profile?.id` ל-dependency array של ה-useEffect** - כך האפקט ירוץ גם כשהפרופיל נטען
+2. **שימוש ב-callback ref במקום `useRef`** - כך ברגע שהאלמנט נוצר ב-DOM, הגלילה מופעלת מיידית בלי תלות ב-useEffect
+3. **הסרת ה-useEffect** שהיה אחראי על הגלילה - כי ה-callback ref מטפל בזה בעצמו
+
+### הגישה: callback ref
+
+במקום `useRef` + `useEffect`, נשתמש ב-callback ref שמופעל ברגע שהאלמנט מתחבר ל-DOM:
+
+```typescript
+const hasScrolled = useRef(false);
+const userSeatCallbackRef = useCallback((node: HTMLButtonElement | null) => {
+  if (node && !hasScrolled.current) {
+    hasScrolled.current = true;
+    setTimeout(() => {
+      node.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    }, 300);
+  }
+}, []);
+```
+
+ב-SeatCell נעביר את ה-callback ref דרך ה-prop `myRef` (נשנה את הטיפוס לתמוך גם ב-callback ref).
+
+### שינויים טכניים
 
 | קובץ | שינוי |
 |---|---|
-| `src/components/seating/SeatCell.tsx` | הוספת prop `myRef` והצמדתו לכפתור המקום |
-| `src/pages/SeatingMap.tsx` | יצירת ref וגלילה אוטומטית למקום של המשתמש אחרי טעינה |
+| `src/pages/SeatingMap.tsx` | החלפת useRef+useEffect ב-callback ref שמפעיל scrollIntoView ברגע שהאלמנט מתחבר ל-DOM |
+| `src/components/seating/SeatCell.tsx` | שינוי טיפוס `myRef` לתמיכה גם ב-callback ref (`Ref<HTMLButtonElement>`) |
+
