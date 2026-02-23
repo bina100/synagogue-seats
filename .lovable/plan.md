@@ -1,44 +1,62 @@
 
 
-# חילוץ פונקציות תאריכים עבריים לקובץ עזר משותף (DRY)
+# הוספת חיפוש לרשימות מתפללים + כיוון RTL לפופאפים
 
-## מה ישתנה
+## סיכום
 
-במקום לכפול את לוגיקת חישוב התאריכים העבריים בשני דפים שונים, ניצור קובץ עזר אחד שישרת את שניהם. בנוסף, נוסיף פונקציה חדשה לחישוב "תווית השבת/חג הקרוב" (shabbatLabel) לשימוש בפופאפ של המתפלל.
+שני שינויים עיקריים:
 
-## קובץ חדש
+1. **חיפוש ברשימת מתפללים** - החלפת ה-Select הרגיל ברכיב חיפוש (Combobox) בשני המקומות:
+   - שיוך מתפלל למקום (SeatCell - דיאלוג גבאי)
+   - סימון היעדרות למתפלל (AbsenceManager - דיאלוג "סמן היעדרות למתפלל")
 
-### `src/lib/hebrewDates.ts`
-קובץ עזר שמרכז את כל הפונקציות הקשורות לתאריכים עבריים:
+2. **כיוון RTL לתוכן הפופאפים** - הוספת `dir="rtl"` ו-`text-right` לתוכן כל הדיאלוגים
 
-- `getNextShabbat()` - תאריך שבת הקרובה (כבר קיימת בשני קבצים)
-- `getUpcomingHolidays()` - חגים ב-30 יום הקרובים (כבר קיימת ב-AbsenceManager)
-- `formatHebrewDate()` - עיצוב תאריך עברי (כבר קיימת ב-AbsenceManager)
-- `getNextEventLabel()` - **חדשה** - מחזירה תווית כמו "שבת פרשת וירא (כ"ב חשוון תשפ"ו)" או "סוכות (ט"ו תשרי תשפ"ו)" אם חג קודם לשבת
+## פירוט טכני
 
-## קבצים שישתנו
+### רכיב חיפוש (Combobox)
+
+במקום Select רגיל, נשתמש ברכיבי `Command` (cmdk) שכבר קיימים בפרויקט (`src/components/ui/command.tsx`) עם Popover. זה מאפשר הקלדת טקסט לסינון הרשימה.
+
+מבנה הרכיב:
+```text
+Popover
+  PopoverTrigger -> Button (מציג שם נבחר או placeholder)
+  PopoverContent
+    Command
+      CommandInput (שדה חיפוש)
+      CommandList
+        CommandEmpty ("לא נמצאו תוצאות")
+        CommandGroup
+          CommandItem (לכל מתפלל)
+```
+
+### קבצים שישתנו
 
 | קובץ | שינוי |
 |---|---|
-| `src/lib/hebrewDates.ts` | **חדש** - קובץ עזר עם כל פונקציות התאריכים העבריים + פונקציה חדשה `getNextEventLabel` |
-| `src/pages/SeatingMap.tsx` | הסרת `getNextShabbat` המקומית, ייבוא מ-`hebrewDates`, שימוש ב-`getNextEventLabel` והעברת `shabbatLabel` ל-SeatCell |
-| `src/pages/AbsenceManager.tsx` | הסרת `getNextShabbat`, `getUpcomingHolidays`, `formatHebrewDate` המקומיות, ייבוא מ-`hebrewDates`, העברת `shabbatLabel` ל-SeatCell |
-| `src/components/seating/SeatCell.tsx` | הוספת prop `shabbatLabel?: string` והכנסתו לטקסט הפופאפ של מתפלל רגיל |
+| `src/components/seating/SeatCell.tsx` | החלפת Select בשיוך מתפלל ברכיב Combobox עם חיפוש + הוספת `dir="rtl"` לכל DialogContent |
+| `src/pages/AbsenceManager.tsx` | החלפת Select בדיאלוג "סמן היעדרות למתפלל" ברכיב Combobox עם חיפוש + הוספת `dir="rtl"` לכל DialogContent |
 
-## פירוט הפונקציה החדשה `getNextEventLabel`
+### שינויים ב-SeatCell.tsx
 
+1. הוספת ייבוא: `Popover, PopoverContent, PopoverTrigger` + `Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem`
+2. הוספת state: `searchOpen` לניהול פתיחת הרשימה
+3. החלפת בלוק ה-Select (שורות 113-132) ברכיב Combobox שמאפשר חיפוש
+4. הוספת `dir="rtl"` ו-`className="text-right"` לכל רכיבי DialogContent (שורה 88, 157)
+
+### שינויים ב-AbsenceManager.tsx
+
+1. הוספת ייבוא: `Popover, PopoverContent, PopoverTrigger` + `Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem`
+2. הוספת state: `memberSearchOpen`
+3. החלפת ה-Select בדיאלוג "סמן היעדרות למתפלל" (שורות 356-368) ברכיב Combobox
+4. הוספת `dir="rtl"` לכל רכיבי DialogContent בדף (שורות 351, 572)
+
+### כיוון RTL
+
+כל `DialogContent` יקבל:
 ```text
-1. בודקת אם יש חג לפני שבת הקרובה (getUpcomingHolidays)
-2. אם כן -> מחזירה "סוכות (ט"ו תשרי תשפ"ו)"
-3. אם לא -> מחשבת את פרשת השבוע באמצעות HebrewCalendar.calendar
-4. מחזירה "שבת פרשת וירא (כ"ב חשוון תשפ"ו)"
+<DialogContent dir="rtl" className="text-right">
 ```
 
-## דוגמה לפופאפ המעודכן (SeatCell)
-
-### שחרור מקום:
-> המקום יסומן כ"פנוי" **לשבת פרשת וירא (כ"ב חשוון תשפ"ו)** במפת הגבאי ויתאפשר שיבוץ אורחים. האם להמשיך?
-
-### ביטול שחרור:
-> המקום יסומן מחדש כ"תפוס" **לשבת פרשת וירא (כ"ב חשוון תשפ"ו)** במפת הגבאי ולא יתאפשר שיבוץ אורחים. האם להמשיך?
-
+זה יבטיח שכל התוכן בפופאפים (כותרות, טקסטים, כפתורים) מיושר מימין לשמאל כמו שמצופה בעברית.
