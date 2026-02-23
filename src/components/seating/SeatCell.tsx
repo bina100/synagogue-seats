@@ -155,11 +155,11 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
       {!canManage && isCurrentUser && (
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isAbsent ? "ביטול היעדרות" : "דיווח היעדרות"}</DialogTitle>
+            <DialogTitle>{isAbsent ? "שינוי סטטוס: תפוס" : "שינוי סטטוס: פנוי"}</DialogTitle>
             <DialogDescription>
               {isAbsent
-                ? "סימנת שאינך מגיע השבת. האם ברצונך לבטל את ההיעדרות?"
-                : "האם ברצונך לעדכן את הגבאי שאינך מגיע השבת / בחג הקרוב? המקום שלך יסומן כפנוי לאורחים."}
+                ? "המקום יסומן מחדש כ\"תפוס\" במפת הגבאי ולא יתאפשר שיבוץ אורחים. האם להמשיך?"
+                : "המקום יסומן כ\"פנוי\" במפת הגבאי ויתאפשר שיבוץ אורחים. האם להמשיך?"}
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 justify-end mt-4">
@@ -173,7 +173,7 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
                 setOpen(false);
               }}
             >
-              {isAbsent ? "אני מגיע (בטל היעדרות)" : "כן, איני מגיע"}
+              {isAbsent ? "סמן כתפוס (שמור)" : "סמן כפנוי"}
             </Button>
           </div>
         </DialogContent>
