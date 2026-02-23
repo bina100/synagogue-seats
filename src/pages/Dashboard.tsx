@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,7 +19,7 @@ import {
 import { Building2, Plus, MapPin, Users, Trash2 } from "lucide-react";
 
 export default function Dashboard() {
-  const { profile, isSuperAdmin } = useAuth();
+  const { profile, isSuperAdmin, roles } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -39,6 +39,15 @@ export default function Dashboard() {
       return data;
     },
   });
+
+  // Auto-redirect regular members to their seating map
+  const isRegularMember = !isSuperAdmin && !roles.some((r) => r.role === "gabbai");
+  useEffect(() => {
+    if (isLoading || !synagogues) return;
+    if (isRegularMember && synagogues.length === 1) {
+      navigate(`/synagogue/${synagogues[0].id}/seating`, { replace: true });
+    }
+  }, [isLoading, synagogues, isRegularMember, navigate]);
 
   // Create synagogue
   const createMutation = useMutation({
