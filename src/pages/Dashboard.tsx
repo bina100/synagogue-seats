@@ -43,11 +43,11 @@ export default function Dashboard() {
   // Auto-redirect regular members to their seating map
   const isRegularMember = !isSuperAdmin && !roles.some((r) => r.role === "gabbai");
   useEffect(() => {
-    if (isLoading || !synagogues) return;
+    if (isLoading || !synagogues || !profile) return;
     if (isRegularMember && synagogues.length > 0) {
       navigate(`/synagogue/${synagogues[0].id}/seating`, { replace: true });
     }
-  }, [isLoading, synagogues, isRegularMember, navigate]);
+  }, [isLoading, synagogues, isRegularMember, navigate, profile]);
 
   // Create synagogue
   const createMutation = useMutation({
