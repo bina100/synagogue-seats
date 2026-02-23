@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Armchair, UserPlus, X, CalendarOff, CheckCircle2 } from "lucide-react";
+import { Armchair, UserPlus, X, CalendarOff, CheckCircle2, ChevronsUpDown, Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,13 +10,16 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import StructuralElement from "./StructuralElement";
 
 interface SeatCellProps {
@@ -35,6 +38,7 @@ interface SeatCellProps {
 
 export default function SeatCell({ seat, members, canManage, onAssign, currentUserProfileId, isAbsent, onToggleAbsence, isAbsentForGabbai, onToggleGabbaiAbsence, myRef, shabbatLabel }: SeatCellProps) {
   const [open, setOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Empty cell = invisible spacer for grid alignment
   if (seat.element_type === 'empty') {
@@ -85,7 +89,7 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
 
       {/* Admin assign dialog */}
       {canManage && (
-        <DialogContent>
+        <DialogContent dir="rtl" className="text-right">
           <DialogHeader>
             <DialogTitle>מקום {seat.seat_number}</DialogTitle>
           </DialogHeader>
@@ -112,24 +116,42 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
             )}
             <div className="space-y-2">
               <Label>שייך מתפלל</Label>
-              <Select
-                value=""
-                onValueChange={(profileId) => {
-                  onAssign(seat.id, profileId);
-                  setOpen(false);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר מתפלל..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {members?.map((m) => (
-                    <SelectItem key={m.profiles?.id} value={m.profiles?.id || ""}>
-                      {m.profiles?.full_name} ({m.profiles?.username})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={searchOpen}
+                    className="w-full justify-between"
+                  >
+                    בחר מתפלל...
+                    <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" dir="rtl">
+                  <Command>
+                    <CommandInput placeholder="חפש מתפלל..." />
+                    <CommandList>
+                      <CommandEmpty>לא נמצאו תוצאות</CommandEmpty>
+                      <CommandGroup>
+                        {members?.map((m) => (
+                          <CommandItem
+                            key={m.profiles?.id}
+                            value={`${m.profiles?.full_name} ${m.profiles?.username}`}
+                            onSelect={() => {
+                              onAssign(seat.id, m.profiles?.id);
+                              setSearchOpen(false);
+                              setOpen(false);
+                            }}
+                          >
+                            {m.profiles?.full_name} ({m.profiles?.username})
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             {/* Shabbat Absence section (only for assigned seats) */}
             {isAssigned && (
@@ -154,7 +176,7 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
 
       {/* Regular member absence dialog */}
       {!canManage && isCurrentUser && (
-        <DialogContent>
+        <DialogContent dir="rtl" className="text-right">
           <DialogHeader>
             <DialogTitle>{isAbsent ? "שינוי סטטוס: תפוס" : "שינוי סטטוס: פנוי"}</DialogTitle>
             <DialogDescription>

@@ -356,7 +356,7 @@ export default function SeatingMap() {
                   ייבוא מאקסל
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent dir="rtl" className="max-w-md text-right">
                 <DialogHeader>
                   <DialogTitle>ייבוא מפת מקומות מאקסל</DialogTitle>
                 </DialogHeader>
@@ -537,7 +537,7 @@ export default function SeatingMap() {
 
       {/* Import Results Dialog */}
       <Dialog open={showImportResults} onOpenChange={setShowImportResults}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogContent dir="rtl" className="max-w-lg max-h-[80vh] overflow-y-auto text-right">
           <DialogHeader>
             <DialogTitle>תוצאות ייבוא משתמשים</DialogTitle>
           </DialogHeader>

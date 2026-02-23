@@ -14,13 +14,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
 import {
   Armchair,
   CalendarOff,
@@ -30,6 +32,7 @@ import {
   XCircle,
   MinusCircle,
   Star,
+  ChevronsUpDown,
 } from "lucide-react";
 import { getNextShabbat, getUpcomingHolidays, formatHebrewDate } from "@/lib/hebrewDates";
 
@@ -41,6 +44,7 @@ export default function AbsenceManager() {
   const [shabbatDate] = useState(getNextShabbat);
   const [markForOtherOpen, setMarkForOtherOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [selectedSeat, setSelectedSeat] = useState<any>(null);
   const holidays = useMemo(() => getUpcomingHolidays(), []);
 
@@ -348,25 +352,50 @@ export default function AbsenceManager() {
 
         {/* Mark for other dialog */}
         <Dialog open={markForOtherOpen} onOpenChange={setMarkForOtherOpen}>
-          <DialogContent>
+          <DialogContent dir="rtl" className="text-right">
             <DialogHeader>
               <DialogTitle>סמן היעדרות למתפלל</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר מתפלל..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {members
-                    ?.filter((m) => !absentProfileIds.has((m.profiles as any)?.id))
-                    .map((m) => (
-                      <SelectItem key={(m.profiles as any)?.id} value={(m.profiles as any)?.id || ""}>
-                        {(m.profiles as any)?.full_name} ({(m.profiles as any)?.username})
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <Popover open={memberSearchOpen} onOpenChange={setMemberSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={memberSearchOpen}
+                    className="w-full justify-between"
+                  >
+                    {selectedMemberId
+                      ? members?.find((m) => (m.profiles as any)?.id === selectedMemberId)?.profiles?.full_name || "בחר מתפלל..."
+                      : "בחר מתפלל..."}
+                    <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" dir="rtl">
+                  <Command>
+                    <CommandInput placeholder="חפש מתפלל..." />
+                    <CommandList>
+                      <CommandEmpty>לא נמצאו תוצאות</CommandEmpty>
+                      <CommandGroup>
+                        {members
+                          ?.filter((m) => !absentProfileIds.has((m.profiles as any)?.id))
+                          .map((m) => (
+                            <CommandItem
+                              key={(m.profiles as any)?.id}
+                              value={`${(m.profiles as any)?.full_name} ${(m.profiles as any)?.username}`}
+                              onSelect={() => {
+                                setSelectedMemberId((m.profiles as any)?.id || "");
+                                setMemberSearchOpen(false);
+                              }}
+                            >
+                              {(m.profiles as any)?.full_name} ({(m.profiles as any)?.username})
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               <Button
                 className="w-full"
                 disabled={!selectedMemberId || markOtherAbsentMutation.isPending}
@@ -570,7 +599,7 @@ export default function AbsenceManager() {
 
         {/* Seat detail dialog (gabbai) */}
         <Dialog open={!!selectedSeat} onOpenChange={() => setSelectedSeat(null)}>
-          <DialogContent>
+          <DialogContent dir="rtl" className="text-right">
             <DialogHeader>
               <DialogTitle>פרטי מקום</DialogTitle>
             </DialogHeader>
