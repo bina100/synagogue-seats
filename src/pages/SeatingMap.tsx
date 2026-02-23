@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -130,17 +130,16 @@ export default function SeatingMap() {
   });
   const allAbsentSeatIds = useMemo(() => new Set((allAbsences ?? []).map(a => a.seat_id).filter(Boolean)), [allAbsences]);
 
-  // Auto-scroll to user's seat
-  const userSeatRef = useRef<HTMLButtonElement>(null);
+  // Auto-scroll to user's seat using callback ref
   const hasScrolled = useRef(false);
-  useEffect(() => {
-    if (!isLoading && sections && userSeatRef.current && !hasScrolled.current) {
+  const userSeatCallbackRef = useCallback((node: HTMLButtonElement | null) => {
+    if (node && !hasScrolled.current) {
       hasScrolled.current = true;
       setTimeout(() => {
-        userSeatRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        node.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
       }, 300);
     }
-  }, [isLoading, sections]);
+  }, []);
   // Assign mutation
   const assignMutation = useMutation({
     mutationFn: async ({ seatId, profileId }: { seatId: string; profileId: string | null }) => {
@@ -513,7 +512,7 @@ export default function SeatingMap() {
                                   onToggleAbsence={seat.assigned_to === profile?.id ? () => handleToggleAbsence(seat.id) : undefined}
                                   isAbsentForGabbai={canManage && seat.assigned_to ? allAbsentSeatIds.has(seat.id) : undefined}
                                   onToggleGabbaiAbsence={canManage && seat.assigned_to ? () => handleToggleGabbaiAbsence(seat.id, seat.assigned_to) : undefined}
-                                  myRef={seat.assigned_to === profile?.id && !hasScrolled.current ? userSeatRef : undefined}
+                                  myRef={seat.assigned_to === profile?.id ? userSeatCallbackRef : undefined}
                                 />
                               ))}
                             </div>

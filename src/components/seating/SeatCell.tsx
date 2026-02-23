@@ -29,7 +29,7 @@ interface SeatCellProps {
   onToggleAbsence?: () => void;
   isAbsentForGabbai?: boolean;
   onToggleGabbaiAbsence?: () => void;
-  myRef?: React.RefObject<HTMLButtonElement>;
+  myRef?: React.Ref<HTMLButtonElement>;
 }
 
 export default function SeatCell({ seat, members, canManage, onAssign, currentUserProfileId, isAbsent, onToggleAbsence, isAbsentForGabbai, onToggleGabbaiAbsence, myRef }: SeatCellProps) {
