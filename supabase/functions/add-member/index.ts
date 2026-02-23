@@ -66,11 +66,12 @@ serve(async (req) => {
     const safeUsername = username.toLowerCase().replace(/[^a-z0-9]/g, "");
     const email = `${safeUsername || crypto.randomUUID().slice(0, 8)}@synagogue.local`;
 
-    // Check if user already exists
+    // Check if user already exists by username (try multiple formats)
+    const normalizedUsername = username.toLowerCase().replace(/\s/g, "_");
     const { data: existingProfile } = await supabaseAdmin
       .from("profiles")
       .select("id")
-      .eq("username", username.toLowerCase().replace(/\s/g, "_"))
+      .or(`username.eq.${normalizedUsername},username.eq.${username},full_name.eq.${full_name}`)
       .maybeSingle();
 
     let profileId: string;
@@ -83,11 +84,12 @@ serve(async (req) => {
         email,
         password,
         email_confirm: true,
-        user_metadata: { username, full_name },
+        user_metadata: { username: normalizedUsername, full_name },
       });
 
       if (authError) {
-        return new Response(JSON.stringify({ error: authError.message }), {
+        console.error("Auth error:", authError.message);
+        return new Response(JSON.stringify({ error: `שגיאה ביצירת משתמש: ${authError.message}` }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
