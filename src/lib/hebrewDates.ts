@@ -1,0 +1,84 @@
+import { HDate, HebrewCalendar, flags } from "@hebcal/core";
+
+/** Get next Shabbat date string (upcoming Saturday) in YYYY-MM-DD format */
+export function getNextShabbat(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const daysUntilShabbat = day === 6 ? 0 : (6 - day + 7) % 7 || 7;
+  const shabbat = new Date(now);
+  shabbat.setDate(now.getDate() + daysUntilShabbat);
+  return shabbat.toISOString().split("T")[0];
+}
+
+/** Get upcoming Jewish holidays (next 30 days) */
+export function getUpcomingHolidays(): Array<{ date: string; name: string; hebrew: string }> {
+  const now = new Date();
+  const end = new Date(now);
+  end.setDate(end.getDate() + 30);
+
+  const events = HebrewCalendar.calendar({
+    start: now,
+    end,
+    il: true,
+    noMinorFast: true,
+    noModern: true,
+    noRoshChodesh: true,
+    noSpecialShabbat: true,
+  });
+
+  return events
+    .filter((ev) => ev.getFlags() & (flags.CHAG | flags.MAJOR_FAST | flags.YOM_TOV_ENDS))
+    .map((ev) => ({
+      date: ev.getDate().greg().toISOString().split("T")[0],
+      name: ev.render("he"),
+      hebrew: ev.renderBrief("he"),
+    }));
+}
+
+/** Format a date string to Hebrew + Gregorian display */
+export function formatHebrewDate(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  const hdate = new HDate(date);
+  const gregorian = date.toLocaleDateString("he-IL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  return `${gregorian} • ${hdate.renderGematriya()}`;
+}
+
+/**
+ * Get a label for the next upcoming event (Shabbat or holiday).
+ * Returns e.g. "שבת פרשת וירא (כ״ב חשוון תשפ״ו)" or "סוכות (ט״ו תשרי תשפ״ו)"
+ */
+export function getNextEventLabel(): string {
+  const nextShabbatDate = getNextShabbat();
+  const shabbatGreg = new Date(nextShabbatDate + "T00:00:00");
+  const holidays = getUpcomingHolidays();
+
+  // Check if there's a holiday before the next Shabbat
+  const holidayBeforeShabbat = holidays.find((h) => h.date <= nextShabbatDate);
+  if (holidayBeforeShabbat) {
+    const holidayDate = new Date(holidayBeforeShabbat.date + "T00:00:00");
+    const hdate = new HDate(holidayDate);
+    return `${holidayBeforeShabbat.hebrew} (${hdate.renderGematriya()})`;
+  }
+
+  // Get the parasha for this Shabbat
+  const hdate = new HDate(shabbatGreg);
+  const events = HebrewCalendar.calendar({
+    start: shabbatGreg,
+    end: shabbatGreg,
+    il: true,
+    sedrot: true,
+    noHolidays: true,
+  });
+
+  const parasha = events.find((ev) => ev.getFlags() & flags.PARSHA_HASHAVUA);
+  if (parasha) {
+    return `שבת ${parasha.render("he")} (${hdate.renderGematriya()})`;
+  }
+
+  // Fallback
+  return `שבת (${hdate.renderGematriya()})`;
+}

@@ -21,16 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import SeatCell from "@/components/seating/SeatCell";
 import StructuralElement from "@/components/seating/StructuralElement";
 import { parseSeatingExcel, type ParsedSection } from "@/lib/parseSeatingExcel";
-
-// Get next Shabbat date (upcoming Saturday)
-function getNextShabbat(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const daysUntilShabbat = day === 6 ? 0 : (6 - day + 7) % 7 || 7;
-  const shabbat = new Date(now);
-  shabbat.setDate(now.getDate() + daysUntilShabbat);
-  return shabbat.toISOString().split("T")[0];
-}
+import { getNextShabbat, getNextEventLabel } from "@/lib/hebrewDates";
 
 export default function SeatingMap() {
   const { id: synagogueId } = useParams<{ id: string }>();
@@ -40,6 +31,7 @@ export default function SeatingMap() {
 
   const canManage = isSuperAdmin || roles.some((r) => r.role === "gabbai" && r.synagogue_id === synagogueId);
   const nextShabbat = getNextShabbat();
+  const shabbatLabel = useMemo(() => getNextEventLabel(), []);
 
   // Fetch synagogue
   const { data: synagogue } = useQuery({
@@ -513,6 +505,7 @@ export default function SeatingMap() {
                                   isAbsentForGabbai={canManage && seat.assigned_to ? allAbsentSeatIds.has(seat.id) : undefined}
                                   onToggleGabbaiAbsence={canManage && seat.assigned_to ? () => handleToggleGabbaiAbsence(seat.id, seat.assigned_to) : undefined}
                                   myRef={seat.assigned_to === profile?.id ? userSeatCallbackRef : undefined}
+                                  shabbatLabel={shabbatLabel}
                                 />
                               ))}
                             </div>

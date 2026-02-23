@@ -30,9 +30,10 @@ interface SeatCellProps {
   isAbsentForGabbai?: boolean;
   onToggleGabbaiAbsence?: () => void;
   myRef?: React.Ref<HTMLButtonElement>;
+  shabbatLabel?: string;
 }
 
-export default function SeatCell({ seat, members, canManage, onAssign, currentUserProfileId, isAbsent, onToggleAbsence, isAbsentForGabbai, onToggleGabbaiAbsence, myRef }: SeatCellProps) {
+export default function SeatCell({ seat, members, canManage, onAssign, currentUserProfileId, isAbsent, onToggleAbsence, isAbsentForGabbai, onToggleGabbaiAbsence, myRef, shabbatLabel }: SeatCellProps) {
   const [open, setOpen] = useState(false);
 
   // Empty cell = invisible spacer for grid alignment
@@ -158,8 +159,8 @@ export default function SeatCell({ seat, members, canManage, onAssign, currentUs
             <DialogTitle>{isAbsent ? "שינוי סטטוס: תפוס" : "שינוי סטטוס: פנוי"}</DialogTitle>
             <DialogDescription>
               {isAbsent
-                ? "המקום יסומן מחדש כ\"תפוס\" במפת הגבאי ולא יתאפשר שיבוץ אורחים. האם להמשיך?"
-                : "המקום יסומן כ\"פנוי\" במפת הגבאי ויתאפשר שיבוץ אורחים. האם להמשיך?"}
+                ? `המקום יסומן מחדש כ"תפוס"${shabbatLabel ? ` ל${shabbatLabel}` : ""} במפת הגבאי ולא יתאפשר שיבוץ אורחים. האם להמשיך?`
+                : `המקום יסומן כ"פנוי"${shabbatLabel ? ` ל${shabbatLabel}` : ""} במפת הגבאי ויתאפשר שיבוץ אורחים. האם להמשיך?`}
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 justify-end mt-4">

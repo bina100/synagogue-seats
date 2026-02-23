@@ -31,53 +31,7 @@ import {
   MinusCircle,
   Star,
 } from "lucide-react";
-import { HDate, HebrewCalendar, flags } from "@hebcal/core";
-
-// Get next Shabbat date (upcoming Saturday)
-function getNextShabbat(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const daysUntilShabbat = day === 6 ? 0 : (6 - day + 7) % 7 || 7;
-  const shabbat = new Date(now);
-  shabbat.setDate(now.getDate() + daysUntilShabbat);
-  return shabbat.toISOString().split("T")[0];
-}
-
-// Get upcoming Jewish holidays (next 30 days)
-function getUpcomingHolidays(): Array<{ date: string; name: string; hebrew: string }> {
-  const now = new Date();
-  const end = new Date(now);
-  end.setDate(end.getDate() + 30);
-
-  const events = HebrewCalendar.calendar({
-    start: now,
-    end,
-    il: true,
-    noMinorFast: true,
-    noModern: true,
-    noRoshChodesh: true,
-    noSpecialShabbat: true,
-  });
-
-  return events
-    .filter((ev) => ev.getFlags() & (flags.CHAG | flags.MAJOR_FAST | flags.YOM_TOV_ENDS))
-    .map((ev) => ({
-      date: ev.getDate().greg().toISOString().split("T")[0],
-      name: ev.render("he"),
-      hebrew: ev.renderBrief("he"),
-    }));
-}
-
-function formatHebrewDate(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00");
-  const hdate = new HDate(date);
-  const gregorian = date.toLocaleDateString("he-IL", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-  return `${gregorian} • ${hdate.renderGematriya()}`;
-}
+import { getNextShabbat, getUpcomingHolidays, formatHebrewDate } from "@/lib/hebrewDates";
 
 export default function AbsenceManager() {
   const { id: synagogueId } = useParams<{ id: string }>();
