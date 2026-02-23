@@ -44,7 +44,7 @@ export default function Dashboard() {
   const isRegularMember = !isSuperAdmin && !roles.some((r) => r.role === "gabbai");
   useEffect(() => {
     if (isLoading || !synagogues) return;
-    if (isRegularMember && synagogues.length === 1) {
+    if (isRegularMember && synagogues.length > 0) {
       navigate(`/synagogue/${synagogues[0].id}/seating`, { replace: true });
     }
   }, [isLoading, synagogues, isRegularMember, navigate]);
