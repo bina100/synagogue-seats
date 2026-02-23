@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, UserPlus, Users, LayoutGrid, Trash2, Shield, User, Armchair, CalendarOff } from "lucide-react";
+import { Plus, UserPlus, Users, LayoutGrid, Trash2, Shield, User, Armchair, CalendarOff, Search } from "lucide-react";
 
 export default function SynagogueManage() {
   const { id } = useParams<{ id: string }>();
@@ -101,6 +101,7 @@ function MembersTab({ synagogueId, canManage }: { synagogueId: string; canManage
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: members, isLoading } = useQuery({
     queryKey: ["members", synagogueId],
@@ -197,33 +198,53 @@ function MembersTab({ synagogueId, canManage }: { synagogueId: string; canManage
         ) : !members?.length ? (
           <p className="text-muted-foreground text-center py-8">אין מתפללים רשומים עדיין</p>
         ) : (
-          <div className="space-y-2">
-            {members.map((m) => (
-              <div key={m.id} className="flex items-center justify-between rounded-lg border p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
-                    <User className="h-4 w-4 text-muted-foreground" />
+          <>
+            <div className="relative mb-3">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="חפש מתפלל..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pr-9 text-right"
+                dir="rtl"
+              />
+            </div>
+            <div className="space-y-2">
+              {members
+                .filter((m) => {
+                  if (!searchTerm) return true;
+                  const term = searchTerm.toLowerCase();
+                  const name = ((m.profiles as any)?.full_name || "").toLowerCase();
+                  const uname = ((m.profiles as any)?.username || "").toLowerCase();
+                  return name.includes(term) || uname.includes(term);
+                })
+                .map((m) => (
+                <div key={m.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{(m.profiles as any)?.full_name}</p>
+                      <p className="text-xs text-muted-foreground">{(m.profiles as any)?.username}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-sm">{(m.profiles as any)?.full_name}</p>
-                    <p className="text-xs text-muted-foreground">{(m.profiles as any)?.username}</p>
-                  </div>
+                  {canManage && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      onClick={() => {
+                        if (confirm("להסיר את המתפלל?")) removeMutation.mutate(m.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-                {canManage && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive"
-                    onClick={() => {
-                      if (confirm("להסיר את המתפלל?")) removeMutation.mutate(m.id);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
@@ -238,6 +259,7 @@ function GabbaisTab({ synagogueId, canManage }: { synagogueId: string; canManage
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: gabbais, isLoading } = useQuery({
     queryKey: ["gabbais", synagogueId],
@@ -335,33 +357,53 @@ function GabbaisTab({ synagogueId, canManage }: { synagogueId: string; canManage
         ) : !gabbais?.length ? (
           <p className="text-muted-foreground text-center py-8">אין גבאים רשומים עדיין</p>
         ) : (
-          <div className="space-y-2">
-            {gabbais.map((g) => (
-              <div key={g.id} className="flex items-center justify-between rounded-lg border p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
-                    <Shield className="h-4 w-4 text-primary" />
+          <>
+            <div className="relative mb-3">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="חפש גבאי..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pr-9 text-right"
+                dir="rtl"
+              />
+            </div>
+            <div className="space-y-2">
+              {gabbais
+                .filter((g) => {
+                  if (!searchTerm) return true;
+                  const term = searchTerm.toLowerCase();
+                  const name = ((g.profiles as any)?.full_name || "").toLowerCase();
+                  const uname = ((g.profiles as any)?.username || "").toLowerCase();
+                  return name.includes(term) || uname.includes(term);
+                })
+                .map((g) => (
+                <div key={g.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+                      <Shield className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{(g.profiles as any)?.full_name}</p>
+                      <p className="text-xs text-muted-foreground">{(g.profiles as any)?.username}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-sm">{(g.profiles as any)?.full_name}</p>
-                    <p className="text-xs text-muted-foreground">{(g.profiles as any)?.username}</p>
-                  </div>
+                  {canManage && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      onClick={() => {
+                        if (confirm("להסיר את הגבאי?")) removeGabbaiMutation.mutate(g.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-                {canManage && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive"
-                    onClick={() => {
-                      if (confirm("להסיר את הגבאי?")) removeGabbaiMutation.mutate(g.id);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
@@ -374,6 +416,7 @@ function SectionsTab({ synagogueId, canManage }: { synagogueId: string; canManag
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sectionName, setSectionName] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: sections, isLoading } = useQuery({
     queryKey: ["sections", synagogueId],
@@ -465,30 +508,47 @@ function SectionsTab({ synagogueId, canManage }: { synagogueId: string; canManag
         ) : !sections?.length ? (
           <p className="text-muted-foreground text-center py-8">אין מחלקות עדיין. הוסף מחלקה כמו "אולם ראשי" או "עזרת נשים".</p>
         ) : (
-          <div className="space-y-2">
-            {sections.map((s) => (
-              <div key={s.id} className="flex items-center justify-between rounded-lg border p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent">
-                    <LayoutGrid className="h-4 w-4 text-accent-foreground" />
+          <>
+            <div className="relative mb-3">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="חפש מחלקה..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pr-9 text-right"
+                dir="rtl"
+              />
+            </div>
+            <div className="space-y-2">
+              {sections
+                .filter((s) => {
+                  if (!searchTerm) return true;
+                  return s.name.toLowerCase().includes(searchTerm.toLowerCase());
+                })
+                .map((s) => (
+                <div key={s.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent">
+                      <LayoutGrid className="h-4 w-4 text-accent-foreground" />
+                    </div>
+                    <p className="font-medium text-sm">{s.name}</p>
                   </div>
-                  <p className="font-medium text-sm">{s.name}</p>
+                  {canManage && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      onClick={() => {
+                        if (confirm("למחוק את המחלקה?")) deleteMutation.mutate(s.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-                {canManage && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive"
-                    onClick={() => {
-                      if (confirm("למחוק את המחלקה?")) deleteMutation.mutate(s.id);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
