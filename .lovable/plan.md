@@ -1,42 +1,34 @@
 
-# הוספת שדה חיפוש לרשימות בדף ניהול בית כנסת
+
+# הפניה אוטומטית למפה רק למתפללים רגילים
+
+## מצב נוכחי
+
+הלוגיקה הקיימת כבר מפנה מתפללים רגילים למפת המקומות, אבל רק אם הם משויכים לבית כנסת אחד בלבד (`synagogues.length === 1`). גבאים ומנהלי-על כבר נשארים בדף הראשי.
 
 ## מה ישתנה
 
-בכל אחד משלושת הטאבים (מתפללים, גבאים, מחלקות) יתווסף שדה חיפוש מעל הרשימה שמאפשר סינון לפי שם. החיפוש יסנן את הרשימה בזמן אמת תוך כדי הקלדה.
-
-## קובץ שישתנה
-
-| קובץ | שינוי |
-|---|---|
-| `src/pages/SynagogueManage.tsx` | הוספת state `searchTerm` + שדה Input לחיפוש + סינון הרשימה בכל אחד מ-3 הטאבים |
+נעדכן את התנאי כך שמתפלל רגיל יופנה תמיד למפת המקומות - גם אם הוא משויך ליותר מבית כנסת אחד (במקרה כזה יופנה לבית הכנסת הראשון ברשימה). אם הוא לא משויך לאף בית כנסת, הוא יישאר בדף הראשי עם הודעה מתאימה.
 
 ## פירוט טכני
 
-### MembersTab
-- הוספת `const [searchTerm, setSearchTerm] = useState("")`
-- הוספת שדה `Input` עם placeholder "חפש מתפלל..." ואייקון `Search` מעל רשימת המתפללים
-- סינון `members` לפי `full_name` או `username` שמכילים את מילת החיפוש
+### קובץ: `src/pages/Dashboard.tsx`
 
-### GabbaisTab
-- אותו דבר - שדה חיפוש עם סינון לפי `full_name` או `username`
+שינוי בתנאי ההפניה (שורות 45-50):
 
-### SectionsTab
-- שדה חיפוש עם סינון לפי `name` של המחלקה
-
-### מבנה שדה החיפוש
-
+**לפני:**
 ```text
-<div className="relative mb-3">
-  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-  <Input
-    placeholder="חפש..."
-    value={searchTerm}
-    onChange={(e) => setSearchTerm(e.target.value)}
-    className="pr-9 text-right"
-    dir="rtl"
-  />
-</div>
+if (isRegularMember && synagogues.length === 1) {
+  navigate(`/synagogue/${synagogues[0].id}/seating`, { replace: true });
+}
 ```
 
-שדה החיפוש יופיע רק כשיש פריטים ברשימה (אין טעם להציג חיפוש ברשימה ריקה). הסינון מתבצע בצד הלקוח על הנתונים שכבר נטענו.
+**אחרי:**
+```text
+if (isRegularMember && synagogues.length > 0) {
+  navigate(`/synagogue/${synagogues[0].id}/seating`, { replace: true });
+}
+```
+
+זה השינוי היחיד הנדרש - הלוגיקה של זיהוי מתפלל רגיל (`isRegularMember`) כבר נכונה ומוודאת שגבאים ומנהלי-על נשארים בדף הראשי.
+
