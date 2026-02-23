@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -81,14 +81,13 @@ function formatHebrewDate(dateStr: string): string {
 
 export default function AbsenceManager() {
   const { id: synagogueId } = useParams<{ id: string }>();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selectedSectionId = searchParams.get("section");
   const { isSuperAdmin, profile, roles } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [shabbatDate] = useState(getNextShabbat);
   const [markForOtherOpen, setMarkForOtherOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [selectedSeat, setSelectedSeat] = useState<any>(null);
   const holidays = useMemo(() => getUpcomingHolidays(), []);
 
   const isGabbai = isSuperAdmin || roles.some((r) => r.role === "gabbai" && r.synagogue_id === synagogueId);
@@ -108,17 +107,28 @@ export default function AbsenceManager() {
     enabled: !!synagogueId,
   });
 
-  // Fetch sections
-  const { data: sections } = useQuery({
-    queryKey: ["sections", synagogueId],
+  // Fetch ALL sections with rows and seats (like SeatingMap)
+  const { data: sections, isLoading: sectionsLoading } = useQuery({
+    queryKey: ["absence_full_map", synagogueId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sections")
-        .select("*")
+        .select("*, seat_rows(*, seats(*, profiles:assigned_to(id, full_name, username)))")
         .eq("synagogue_id", synagogueId!)
         .order("sort_order");
       if (error) throw error;
-      return data;
+
+      return data?.map((section) => ({
+        ...section,
+        seat_rows: (section.seat_rows as any[])
+          ?.sort((a: any, b: any) => a.row_number - b.row_number)
+          .map((row: any) => ({
+            ...row,
+            seats: (row.seats as any[])?.sort(
+              (a: any, b: any) => a.seat_number - b.seat_number
+            ),
+          })),
+      }));
     },
     enabled: !!synagogueId,
   });
@@ -204,7 +214,6 @@ export default function AbsenceManager() {
   // Mark absence for another member (gabbai)
   const markOtherAbsentMutation = useMutation({
     mutationFn: async (profileId: string) => {
-      // Find all seats assigned to this profile in this synagogue
       const { data: seatRows } = await supabase
         .from("seat_rows")
         .select("id, sections!inner(synagogue_id)")
@@ -250,12 +259,51 @@ export default function AbsenceManager() {
     },
   });
 
-  const activeSectionId = selectedSectionId || sections?.[0]?.id;
+  // Gabbai: mark specific seat absent
+  const markSeatAbsentMutation = useMutation({
+    mutationFn: async (seat: any) => {
+      const { error } = await supabase.from("absences").insert({
+        profile_id: seat.assigned_to,
+        synagogue_id: synagogueId!,
+        shabbat_date: shabbatDate,
+        seat_id: seat.id,
+        marked_by: myProfileId,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
+      setSelectedSeat(null);
+      toast({ title: "סטטוס המקום עודכן" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    },
+  });
 
-  // Print handler
-  const handlePrint = () => {
-    window.print();
-  };
+  // Gabbai: cancel specific seat absence
+  const cancelSeatAbsenceMutation = useMutation({
+    mutationFn: async (seat: any) => {
+      const { error } = await supabase.from("absences").delete()
+        .eq("profile_id", seat.assigned_to)
+        .eq("synagogue_id", synagogueId!)
+        .eq("shabbat_date", shabbatDate)
+        .eq("seat_id", seat.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
+      setSelectedSeat(null);
+      toast({ title: "סטטוס המקום עודכן" });
+    },
+  });
+
+  // Check for structural elements
+  const hasAronKodesh = sections?.some((s) =>
+    s.seat_rows?.some((r: any) =>
+      r.seats?.some((seat: any) => seat.element_type === "aron_kodesh")
+    )
+  );
 
   return (
     <AppLayout title={`היעדרויות - ${synagogue?.name || ""}`} showBack>
@@ -336,7 +384,7 @@ export default function AbsenceManager() {
                 <UserMinus className="h-4 w-4" />
                 סמן היעדרות למתפלל
               </Button>
-              <Button variant="outline" size="sm" className="gap-2" onClick={handlePrint}>
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
                 <Printer className="h-4 w-4" />
                 הדפס מקומות פנויים
               </Button>
@@ -345,7 +393,7 @@ export default function AbsenceManager() {
         )}
 
         {/* Mark for other dialog */}
-        <Dialog open={markForOtherOpen} onOpenChange={setMarkForOtherOpen} >
+        <Dialog open={markForOtherOpen} onOpenChange={setMarkForOtherOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>סמן היעדרות למתפלל</DialogTitle>
@@ -407,257 +455,166 @@ export default function AbsenceManager() {
           </Card>
         )}
 
-        {/* Section tabs */}
-        {sections && sections.length > 0 && (
-          <>
-            <div className="flex gap-2 overflow-x-auto pb-2 no-print">
-              {sections.map((s) => (
-                <Button
-                  key={s.id}
-                  variant={activeSectionId === s.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSearchParams({ section: s.id })}
-                >
-                  {s.name}
-                </Button>
-              ))}
-            </div>
+        {/* Unified Floor Plan (like SeatingMap) */}
+        {sectionsLoading ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">טוען...</p>
+            </CardContent>
+          </Card>
+        ) : !sections?.length ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Armchair className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground text-lg">אין מפת מקומות עדיין</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="print-floor-plan">
+            <CardContent className="p-3 sm:p-4">
+              {/* Legend */}
+              <div className="flex gap-4 text-xs text-muted-foreground justify-center pb-3 mb-3 border-b flex-wrap no-print">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 rounded bg-teal-100 border-2 border-teal-500" />
+                  המקום שלי
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 rounded bg-destructive/20 border border-destructive/40" />
+                  תפוס
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 rounded bg-success/20 border border-success/40" />
+                  פנוי (נעדר)
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 rounded bg-muted border border-border" />
+                  לא שויך
+                </span>
+              </div>
 
-            {/* Screen: show active section only */}
-            <div className="no-print">
-              {activeSectionId && (
-                <AbsenceSeatingMap
-                  sectionId={activeSectionId}
-                  synagogueId={synagogueId!}
-                  absentSeatIds={absentSeatIds}
-                  currentUserProfileId={myProfileId}
-                  shabbatDate={shabbatDate}
-                />
-              )}
-            </div>
-
-            {/* Print: show ALL sections */}
-            <div className="print-only" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '20px', justifyContent: 'center' }}>
-              {sections.map((s) => (
-                <div key={s.id} className="print-map-container">
-                  <div className="print-section-title">{s.name}</div>
-                  <AbsenceSeatingMap
-                    sectionId={s.id}
-                    synagogueId={synagogueId!}
-                    absentSeatIds={absentSeatIds}
-                    currentUserProfileId={myProfileId}
-                    shabbatDate={shabbatDate}
-                  />
+              {/* Aron Kodesh at top */}
+              {hasAronKodesh && (
+                <div className="flex justify-center mb-4">
+                  <div className="flex items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10 px-8 py-3 text-sm font-bold text-primary shadow-sm">
+                    ארון קודש
+                  </div>
                 </div>
-              ))}
-            </div>
-          </>
+              )}
+
+              {/* Scrollable floor plan - all sections side by side */}
+              <div className="overflow-x-auto pb-2">
+                <div className="flex gap-1 min-w-max justify-center">
+                  {sections.map((section, sIdx) => (
+                    <div key={section.id} className="flex gap-1">
+                      {/* Section column */}
+                      <div className="flex flex-col items-center gap-1">
+                        {/* Section header */}
+                        <div className="text-[10px] font-bold text-muted-foreground mb-1 whitespace-nowrap">
+                          {section.name}
+                        </div>
+
+                        {/* Rows */}
+                        {section.seat_rows?.map((row: any) => {
+                          const isBimaRow = row.seats?.every(
+                            (s: any) => s.element_type === "bima" || (!s.assigned_to && !s.element_type && !s.name)
+                          ) && row.seats?.some((s: any) => s.element_type === "bima");
+
+                          if (isBimaRow && sIdx === Math.floor((sections?.length || 0) / 2)) {
+                            return (
+                              <div key={row.id} className="flex items-center justify-center py-2">
+                                <div className="flex items-center justify-center rounded-xl border-2 border-accent-foreground/20 bg-accent px-6 py-2 text-xs font-bold text-accent-foreground shadow-sm">
+                                  בימה
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (isBimaRow) {
+                            return <div key={row.id} className="h-10" />;
+                          }
+
+                          const displaySeats = row.seats?.filter(
+                            (s: any) => !s.element_type || s.element_type === "amud" || s.element_type === "empty"
+                          ) || [];
+
+                          const regularSeats = displaySeats.filter(
+                            (s: any) => s.element_type !== "amud" && s.element_type !== "aron_kodesh" && s.element_type !== "bima"
+                          );
+
+                          return (
+                            <div key={row.id} className="flex gap-1 items-center print-seat-row">
+                              {regularSeats.map((seat: any) => {
+                                if (seat.element_type === 'empty') {
+                                  return <div key={seat.id} className="w-14 h-14 sm:w-16 sm:h-16 pointer-events-none" />;
+                                }
+
+                                const isAssigned = !!seat.assigned_to;
+                                const isSeatAbsent = isAssigned && absentSeatIds.has(seat.id);
+                                const isCurrentUser = isAssigned && seat.assigned_to === myProfileId;
+                                const assignedName = seat.profiles?.full_name;
+
+                                let bgClass: string;
+                                let borderClass: string;
+                                let textClass: string;
+
+                                if (isCurrentUser) {
+                                  bgClass = "bg-teal-100";
+                                  borderClass = "border-teal-500";
+                                  textClass = "text-teal-900 font-bold";
+                                } else if (!isAssigned) {
+                                  bgClass = "bg-muted/50";
+                                  borderClass = "border-border";
+                                  textClass = "text-muted-foreground";
+                                } else if (isSeatAbsent) {
+                                  bgClass = "bg-success/15";
+                                  borderClass = "border-success/40";
+                                  textClass = "text-success";
+                                } else {
+                                  bgClass = "bg-destructive/15";
+                                  borderClass = "border-destructive/40";
+                                  textClass = "text-destructive";
+                                }
+
+                                return (
+                                  <button
+                                    key={seat.id}
+                                    className={`print-seat relative flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-lg border-2 text-xs font-medium transition-all ${bgClass} ${borderClass} ${textClass} hover:opacity-80 cursor-pointer`}
+                                    style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as React.CSSProperties}
+                                    onClick={() => isAssigned && setSelectedSeat(seat)}
+                                    disabled={!isAssigned}
+                                  >
+                                    <Armchair className="h-3.5 w-3.5 mb-0.5" />
+                                    <span className="text-[8px] leading-tight text-center whitespace-normal break-words max-w-[44px]">
+                                      {isAssigned ? assignedName || "תפוס" : seat.seat_number}
+                                    </span>
+                                    {isSeatAbsent && (
+                                      <span className="absolute -top-1 -left-1 h-3 w-3 rounded-full bg-success flex items-center justify-center">
+                                        <CheckCircle2 className="h-2.5 w-2.5 text-success-foreground" />
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Separator between sections */}
+                      {sIdx < (sections?.length || 0) - 1 && (
+                        <div className="flex flex-col items-center justify-center mx-0.5">
+                          <div className="w-px h-full bg-border" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
-        {/* Legend */}
-        <div className="flex gap-4 text-xs text-muted-foreground justify-center no-print">
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-destructive/20 border border-destructive/40" />
-            תפוס
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-success/20 border border-success/40" />
-            פנוי (נעדר)
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-muted border border-border" />
-            לא שויך
-          </span>
-        </div>
-      </div>
-    </AppLayout>
-  );
-}
-
-// ============ Absence Seating Map (read-only colorful view) ============
-function AbsenceSeatingMap({
-  sectionId,
-  synagogueId,
-  absentSeatIds,
-  currentUserProfileId,
-  shabbatDate,
-}: {
-  sectionId: string;
-  synagogueId: string;
-  absentSeatIds: Set<string>;
-  currentUserProfileId?: string;
-  shabbatDate: string;
-}) {
-  const [selectedSeat, setSelectedSeat] = useState<any>(null);
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  // Mark seat absent (Gabbai)
-  const markSeatAbsentMutation = useMutation({
-    mutationFn: async (seat: any) => {
-      const { error } = await supabase.from("absences").insert({
-        profile_id: seat.assigned_to,
-        synagogue_id: synagogueId,
-        shabbat_date: shabbatDate,
-        seat_id: seat.id,
-        marked_by: currentUserProfileId,
-      } as any);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
-      setSelectedSeat(null);
-      toast({ title: "סטטוס המקום עודכן" });
-    },
-    onError: (e: Error) => {
-      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
-    },
-  });
-
-  // Cancel seat absence (Gabbai)
-  const cancelSeatAbsenceMutation = useMutation({
-    mutationFn: async (seat: any) => {
-      const { error } = await supabase.from("absences").delete()
-        .eq("profile_id", seat.assigned_to)
-        .eq("synagogue_id", synagogueId)
-        .eq("shabbat_date", shabbatDate)
-        .eq("seat_id", seat.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
-      setSelectedSeat(null);
-      toast({ title: "סטטוס המקום עודכן" });
-    },
-  });
-
-  const { data: rows, isLoading } = useQuery({
-    queryKey: ["seat_rows", sectionId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("seat_rows")
-        .select("*, seats(*, profiles:assigned_to(id, full_name, username))")
-        .eq("section_id", sectionId)
-        .order("row_number");
-      if (error) throw error;
-      return data?.map((row) => ({
-        ...row,
-        seats: (row.seats as any[])?.sort(
-          (a: any, b: any) => a.seat_number - b.seat_number
-        ),
-      }));
-    },
-  });
-
-  // Stats
-  const stats = useMemo(() => {
-    if (!rows) return { total: 0, occupied: 0, available: 0, unassigned: 0 };
-    let total = 0, occupied = 0, available = 0, unassigned = 0;
-    rows.forEach((row) => {
-      row.seats?.forEach((seat: any) => {
-        if (seat.element_type) return; // skip structural/empty
-        total++;
-        if (!seat.assigned_to) {
-          unassigned++;
-        } else if (absentSeatIds.has(seat.id)) {
-          available++;
-        } else {
-          occupied++;
-        }
-      });
-    });
-    return { total, occupied, available, unassigned };
-  }, [rows, absentSeatIds]);
-
-  if (isLoading) {
-    return <p className="text-muted-foreground text-center py-4">טוען...</p>;
-  }
-
-  if (!rows?.length) {
-    return (
-      <Card>
-        <CardContent className="py-8 text-center">
-          <Armchair className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">אין שורות במחלקה זו</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader className="pb-2 no-print">
-        <CardTitle className="text-base">מפת מקומות</CardTitle>
-        <div className="flex gap-3 text-sm">
-          <span className="text-destructive font-medium">{stats.occupied} תפוסים</span>
-          <span className="text-success font-medium">{stats.available} פנויים</span>
-          <span className="text-muted-foreground">{stats.unassigned} לא שויכו</span>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {rows.map((row) => (
-          <div key={row.id} className="space-y-1">
-            <span className="text-xs text-muted-foreground no-print">שורה {row.row_number}</span>
-            <div className="flex flex-wrap gap-1.5 justify-center print-seat-row">
-              {row.seats?.map((seat: any) => {
-                if (seat.element_type === 'empty') {
-                  return <div key={seat.id} className="w-14 h-14 pointer-events-none" />;
-                }
-                if (seat.element_type) return null;
-
-                const isAssigned = !!seat.assigned_to;
-                const isAbsent = isAssigned && absentSeatIds.has(seat.id);
-                const isCurrentUser = isAssigned && seat.assigned_to === currentUserProfileId;
-                const assignedName = seat.profiles?.full_name;
-
-                let bgClass: string;
-                let borderClass: string;
-                let textClass: string;
-
-                if (isCurrentUser) {
-                  bgClass = "bg-teal-100";
-                  borderClass = "border-teal-500";
-                  textClass = "text-teal-900 font-bold";
-                } else if (!isAssigned) {
-                  bgClass = "bg-muted/50";
-                  borderClass = "border-border";
-                  textClass = "text-muted-foreground";
-                } else if (isAbsent) {
-                  bgClass = "bg-success/15";
-                  borderClass = "border-success/40";
-                  textClass = "text-success";
-                } else {
-                  bgClass = "bg-destructive/15";
-                  borderClass = "border-destructive/40";
-                  textClass = "text-destructive";
-                }
-
-                return (
-                  <button
-                    key={seat.id}
-                    className={`print-seat relative flex flex-col items-center justify-center w-14 h-14 rounded-lg border-2 text-xs font-medium transition-all ${bgClass} ${borderClass} ${textClass} hover:opacity-80`}
-                    style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as React.CSSProperties}
-                    onClick={() => setSelectedSeat(seat)}
-                  >
-                    <Armchair className="h-4 w-4 mb-0.5" />
-                    <span className="text-[8px] leading-tight text-center whitespace-normal break-words max-w-[48px]">
-                      {isAssigned
-                        ? assignedName || "תפוס"
-                        : seat.seat_number}
-                    </span>
-                    {isAbsent && (
-                      <span className="absolute -top-1 -left-1 h-3 w-3 rounded-full bg-success flex items-center justify-center">
-                        <CheckCircle2 className="h-2.5 w-2.5 text-success-foreground" />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-
-        {/* Seat detail dialog */}
+        {/* Seat detail dialog (gabbai) */}
         <Dialog open={!!selectedSeat} onOpenChange={() => setSelectedSeat(null)}>
           <DialogContent>
             <DialogHeader>
@@ -687,29 +644,31 @@ function AbsenceSeatingMap({
                         </Badge>
                       )}
                     </p>
-                    <div className="pt-2">
-                      {absentSeatIds.has(selectedSeat.id) ? (
-                        <Button
-                          variant="outline"
-                          className="w-full gap-2 border-success text-success"
-                          onClick={() => cancelSeatAbsenceMutation.mutate(selectedSeat)}
-                          disabled={cancelSeatAbsenceMutation.isPending}
-                        >
-                          <CheckCircle2 className="h-4 w-4" />
-                          בטל היעדרות למקום זה
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          className="w-full gap-2 border-destructive text-destructive"
-                          onClick={() => markSeatAbsentMutation.mutate(selectedSeat)}
-                          disabled={markSeatAbsentMutation.isPending}
-                        >
-                          <CalendarOff className="h-4 w-4" />
-                          סמן מקום זה כפנוי (נעדר)
-                        </Button>
-                      )}
-                    </div>
+                    {isGabbai && (
+                      <div className="pt-2">
+                        {absentSeatIds.has(selectedSeat.id) ? (
+                          <Button
+                            variant="outline"
+                            className="w-full gap-2 border-success text-success"
+                            onClick={() => cancelSeatAbsenceMutation.mutate(selectedSeat)}
+                            disabled={cancelSeatAbsenceMutation.isPending}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            בטל היעדרות למקום זה
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            className="w-full gap-2 border-destructive text-destructive"
+                            onClick={() => markSeatAbsentMutation.mutate(selectedSeat)}
+                            disabled={markSeatAbsentMutation.isPending}
+                          >
+                            <CalendarOff className="h-4 w-4" />
+                            סמן מקום זה כפנוי (נעדר)
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <p className="text-muted-foreground">
@@ -721,7 +680,7 @@ function AbsenceSeatingMap({
             )}
           </DialogContent>
         </Dialog>
-      </CardContent>
-    </Card>
+      </div>
+    </AppLayout>
   );
 }
