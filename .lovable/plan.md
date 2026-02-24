@@ -1,89 +1,32 @@
 
 
-# תיקון: גבאים ומנהלים מועברים בטעות למפת המקומות
+# תיקון RTL בפופאפים + הסרת הרשמה מדף כניסה
 
-## הבעיה
+## 1. תיקון גלובלי ל-RTL בכל הדיאלוגים
 
-יש מרוץ תזמון (race condition): כשמשתמש מתחבר, ה-`loading` מסתיים **לפני** שהתפקידים (`roles`) נטענו מהמסד. בזמן הזה `roles` הוא מערך ריק `[]`, מה שגורם ל-`isRegularMember` להחזיר `true` לכולם - גם למנהלים וגם לגבאים. התוצאה: כולם מועברים למפת המקומות.
+### הבעיה
+ב-`DialogHeader` של shadcn יש class קבוע: `sm:text-left` שדורס את כיווניות ה-RTL במסכים גדולים. גם אם מוסיפים `dir="rtl"` ו-`text-right` ל-`DialogContent`, הכותרת עדיין נדחפת שמאלה.
 
-## הפתרון
+### הפתרון
+תיקון חד-פעמי בקובץ `src/components/ui/dialog.tsx` - שינוי `sm:text-left` ל-`sm:text-right` ב-`DialogHeader`. זה יתקן את כל הפופאפים במערכת בבת אחת.
 
-שני שינויים:
+**קובץ: `src/components/ui/dialog.tsx` (שורה 55)**
 
-### 1. קובץ `src/hooks/useAuth.tsx`
-- לא לסמן `loading = false` עד שגם הפרופיל **וגם** התפקידים נטענו
-- להעביר את `setLoading(false)` לתוך `fetchProfile` (אחרי שגם roles נטענו), במקום לקרוא לו מיד אחרי קבלת ה-session
+| לפני | אחרי |
+|---|---|
+| `text-center sm:text-left` | `text-center sm:text-right` |
 
-### 2. קובץ `src/pages/Dashboard.tsx`
-- להוסיף בדיקה שהפרופיל נטען לפני שמפעילים את לוגיקת ההפניה
-- לשנות את התנאי ל: `if (!profile) return;` לפני ההפניה, כדי לוודא שהתפקידים כבר נטענו
+בנוסף, נוסיף `dir="rtl" className="text-right"` לכל `DialogContent` שעדיין חסר:
+- `src/pages/SynagogueManage.tsx` - 3 דיאלוגים (שורות 164, 323, 477)
+- `src/pages/Dashboard.tsx` - דיאלוג אחד (שורה 104)
 
-## פירוט טכני
+## 2. הסרת הרשמה מדף כניסה
 
-### `src/hooks/useAuth.tsx`
+### קובץ: `src/pages/Auth.tsx`
+- הסרת ה-state של `isLogin` ו-`fullName`
+- הסרת ה-branch של signUp מ-handleSubmit
+- הסרת שדה "שם מלא"
+- הסרת כפתור "אין לך חשבון? הירשם כאן"
+- הכותרת המשנית תהיה קבועה: "הכנס לחשבונך"
+- הסרת import של `signUp` מ-useAuth
 
-**שינוי ב-fetchProfile** - להעביר את `setLoading(false)` לסוף הפונקציה:
-
-```text
-const fetchProfile = async (authId: string) => {
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, username, full_name, requires_password_change")
-    .eq("auth_id", authId)
-    .single();
-  if (data) {
-    setProfile(data);
-    const { data: rolesData } = await supabase
-      .from("user_roles")
-      .select("role, synagogue_id")
-      .eq("user_id", data.id);
-    setRoles(rolesData || []);
-  }
-  setLoading(false);  // <-- העברה לכאן
-};
-```
-
-**שינוי ב-onAuthStateChange** - להסיר את `setLoading(false)` מהמקום הנוכחי (שורה 60), ולהשאיר אותו רק ב-else (כשאין session):
-
-```text
-async (_event, session) => {
-  setSession(session);
-  setUser(session?.user ?? null);
-  if (session?.user) {
-    await fetchProfile(session.user.id);  // בלי setTimeout, ו-loading ייסגר בתוך fetchProfile
-  } else {
-    setProfile(null);
-    setRoles([]);
-    setLoading(false);  // רק כשאין משתמש
-  }
-}
-```
-
-**שינוי ב-getSession** - אותו דבר:
-
-```text
-supabase.auth.getSession().then(async ({ data: { session } }) => {
-  setSession(session);
-  setUser(session?.user ?? null);
-  if (session?.user) {
-    await fetchProfile(session.user.id);  // loading ייסגר בפנים
-  } else {
-    setLoading(false);
-  }
-});
-```
-
-### `src/pages/Dashboard.tsx`
-
-הוספת בדיקת profile בתנאי ההפניה:
-
-```text
-useEffect(() => {
-  if (isLoading || !synagogues || !profile) return;
-  if (isRegularMember && synagogues.length > 0) {
-    navigate(`/synagogue/${synagogues[0].id}/seating`, { replace: true });
-  }
-}, [isLoading, synagogues, isRegularMember, navigate, profile]);
-```
-
-השינויים האלו מבטיחים שההפניה תתבצע **רק** אחרי שהתפקידים נטענו, כך שגבאים ומנהלים יישארו בדף הראשי.
