@@ -101,7 +101,7 @@ export default function Dashboard() {
                 בית כנסת חדש
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent dir="rtl" className="text-right">
               <DialogHeader>
                 <DialogTitle>יצירת בית כנסת חדש</DialogTitle>
               </DialogHeader>
