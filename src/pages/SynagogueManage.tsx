@@ -161,7 +161,7 @@ function MembersTab({ synagogueId, canManage }: { synagogueId: string; canManage
                 הוסף מתפלל
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent dir="rtl" className="text-right">
               <DialogHeader>
                 <DialogTitle>הוספת מתפלל חדש</DialogTitle>
               </DialogHeader>
@@ -320,7 +320,7 @@ function GabbaisTab({ synagogueId, canManage }: { synagogueId: string; canManage
                 הוסף גבאי
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent dir="rtl" className="text-right">
               <DialogHeader>
                 <DialogTitle>הוספת גבאי חדש</DialogTitle>
               </DialogHeader>
@@ -474,7 +474,7 @@ function SectionsTab({ synagogueId, canManage }: { synagogueId: string; canManag
                 הוסף מחלקה
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent dir="rtl" className="text-right">
               <DialogHeader>
                 <DialogTitle>מחלקה חדשה</DialogTitle>
               </DialogHeader>

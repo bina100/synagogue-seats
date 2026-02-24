@@ -9,12 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Building2 } from "lucide-react";
 
 export default function Auth() {
-  const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -22,26 +20,11 @@ export default function Auth() {
     e.preventDefault();
     setIsLoading(true);
 
-    if (isLogin) {
-      const { error } = await signIn(username, password);
-      if (error) {
-        toast({ title: "שגיאה בכניסה", description: "שם משתמש או סיסמה שגויים", variant: "destructive" });
-      } else {
-        navigate("/");
-      }
+    const { error } = await signIn(username, password);
+    if (error) {
+      toast({ title: "שגיאה בכניסה", description: "שם משתמש או סיסמה שגויים", variant: "destructive" });
     } else {
-      if (!fullName.trim()) {
-        toast({ title: "שגיאה", description: "יש להזין שם מלא", variant: "destructive" });
-        setIsLoading(false);
-        return;
-      }
-      const { error } = await signUp(username, password, fullName);
-      if (error) {
-        toast({ title: "שגיאה בהרשמה", description: error, variant: "destructive" });
-      } else {
-        toast({ title: "נרשמת בהצלחה!", description: "ברוך הבא למערכת" });
-        navigate("/");
-      }
+      navigate("/");
     }
     setIsLoading(false);
   };
@@ -54,9 +37,7 @@ export default function Auth() {
             <Building2 className="h-8 w-8 text-primary" />
           </div>
           <CardTitle className="text-2xl font-bold">ניהול מקומות ישיבה</CardTitle>
-          <CardDescription className="text-base">
-            {isLogin ? "הכנס לחשבונך" : "צור חשבון חדש"}
-          </CardDescription>
+          <CardDescription className="text-base">הכנס לחשבונך</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -73,20 +54,6 @@ export default function Auth() {
               />
             </div>
 
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">שם מלא</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="הכנס שם מלא"
-                  required
-                  className="text-right"
-                />
-              </div>
-            )}
-
             <div className="space-y-2">
               <Label htmlFor="password">סיסמה</Label>
               <Input
@@ -96,25 +63,15 @@ export default function Auth() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="הכנס סיסמה"
                 required
-                autoComplete={isLogin ? "current-password" : "new-password"}
+                autoComplete="current-password"
                 className="text-right"
               />
             </div>
 
             <Button type="submit" className="w-full text-base sm:text-lg h-12" disabled={isLoading}>
-              {isLoading ? "מעבד..." : isLogin ? "כניסה" : "הרשמה"}
+              {isLoading ? "מעבד..." : "כניסה"}
             </Button>
           </form>
-
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-primary hover:underline"
-            >
-              {isLogin ? "אין לך חשבון? הירשם כאן" : "יש לך חשבון? הכנס כאן"}
-            </button>
-          </div>
         </CardContent>
       </Card>
     </div>
