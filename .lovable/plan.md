@@ -1,32 +1,60 @@
 
+# הוספת שדה טלפון למתפללים - כולל עריכת מתפללים קיימים
 
-# תיקון RTL בפופאפים + הסרת הרשמה מדף כניסה
+## סקירה
+הוספת מספר טלפון לפרופיל המתפלל, כולל אפשרות לערוך מתפללים קיימים (לא רק חדשים). מספרי הטלפון יוצגו ב-LTR כדי שלא "יתהפכו" בממשק העברי.
 
-## 1. תיקון גלובלי ל-RTL בכל הדיאלוגים
+## שינויים
 
-### הבעיה
-ב-`DialogHeader` של shadcn יש class קבוע: `sm:text-left` שדורס את כיווניות ה-RTL במסכים גדולים. גם אם מוסיפים `dir="rtl"` ו-`text-right` ל-`DialogContent`, הכותרת עדיין נדחפת שמאלה.
+### 1. מסד נתונים - הוספת עמודת phone
+מיגרציה פשוטה:
+```sql
+ALTER TABLE profiles ADD COLUMN phone text;
+```
 
-### הפתרון
-תיקון חד-פעמי בקובץ `src/components/ui/dialog.tsx` - שינוי `sm:text-left` ל-`sm:text-right` ב-`DialogHeader`. זה יתקן את כל הפופאפים במערכת בבת אחת.
+### 2. Edge Function חדש - `update-member`
+נדרש כי ה-RLS של טבלת `profiles` מאפשר לכל משתמש לעדכן רק את עצמו (`auth_id = auth.uid()`). הגבאי צריך לעדכן טלפון של מתפללים אחרים, לכן נשתמש ב-service role.
 
-**קובץ: `src/components/ui/dialog.tsx` (שורה 55)**
+הפונקציה תקבל:
+- `profile_id` - מזהה המתפלל
+- `synagogue_id` - לוידוא הרשאות
+- `phone` - מספר הטלפון
 
-| לפני | אחרי |
+תבצע:
+1. וידוא שהקורא הוא גבאי/מנהל של בית הכנסת
+2. עדכון שדה `phone` ב-profiles דרך service role
+
+### 3. Edge Function קיים - `add-member`
+- הוספת `phone` ל-destructuring של הבקשה
+- אחרי יצירת הפרופיל, עדכון הטלפון אם סופק
+
+### 4. ממשק הגבאי - `SynagogueManage.tsx`
+
+#### טפסי הוספה (מתפלל + גבאי)
+- הוספת state של `phone` ושדה קלט "טלפון" בטפסים
+- שליחת `phone` ל-edge function
+- שדה הטלפון יהיה עם `dir="ltr"` ו-`text-left` כדי שהמספרים לא יתהפכו
+
+#### עריכת מתפלל קיים (חדש!)
+- הוספת כפתור עריכה (אייקון עיפרון) ליד כל מתפלל ברשימה
+- לחיצה פותחת דיאלוג עריכה עם שדה טלפון (מאוכלס בערך הנוכחי)
+- שמירה קוראת ל-edge function `update-member`
+- אותו דבר גם בלשונית הגבאים
+
+#### הצגה ברשימות
+- הצגת מספר הטלפון מתחת לשם המשתמש בכל שורה
+- מספר הטלפון מוצג ב-LTR: `<span dir="ltr" className="text-left">`
+
+### 5. שאילתות נתונים
+- עדכון ה-select queries לכלול `phone`:
+  - מתפללים: `profiles(id, username, full_name, phone)`
+  - גבאים: `profiles:user_id(id, username, full_name, phone)`
+
+## פירוט טכני
+
+| קובץ | שינוי |
 |---|---|
-| `text-center sm:text-left` | `text-center sm:text-right` |
-
-בנוסף, נוסיף `dir="rtl" className="text-right"` לכל `DialogContent` שעדיין חסר:
-- `src/pages/SynagogueManage.tsx` - 3 דיאלוגים (שורות 164, 323, 477)
-- `src/pages/Dashboard.tsx` - דיאלוג אחד (שורה 104)
-
-## 2. הסרת הרשמה מדף כניסה
-
-### קובץ: `src/pages/Auth.tsx`
-- הסרת ה-state של `isLogin` ו-`fullName`
-- הסרת ה-branch של signUp מ-handleSubmit
-- הסרת שדה "שם מלא"
-- הסרת כפתור "אין לך חשבון? הירשם כאן"
-- הכותרת המשנית תהיה קבועה: "הכנס לחשבונך"
-- הסרת import של `signUp` מ-useAuth
-
+| מיגרציה | `ALTER TABLE profiles ADD COLUMN phone text` |
+| `supabase/functions/update-member/index.ts` | Edge function חדש לעדכון טלפון של מתפלל קיים |
+| `supabase/functions/add-member/index.ts` | הוספת תמיכה בשדה phone |
+| `src/pages/SynagogueManage.tsx` | שדה טלפון בטפסים, כפתור + דיאלוג עריכה, הצגת טלפון ברשימות |
