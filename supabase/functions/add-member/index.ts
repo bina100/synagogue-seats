@@ -20,7 +20,7 @@ serve(async (req) => {
       });
     }
 
-    const { username, password, full_name, synagogue_id, role } = await req.json();
+    const { username, password, full_name, synagogue_id, role, phone } = await req.json();
 
     if (!username || !password || !full_name || !synagogue_id) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -112,6 +112,11 @@ serve(async (req) => {
       }
 
       profileId = newProfile.id;
+    }
+
+    // Update phone if provided
+    if (phone) {
+      await supabaseAdmin.from("profiles").update({ phone }).eq("id", profileId);
     }
 
     // Add as synagogue member
