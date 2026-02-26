@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, UserPlus, Users, LayoutGrid, Trash2, Shield, User, Armchair, CalendarOff, Search } from "lucide-react";
+import { Plus, UserPlus, Users, LayoutGrid, Trash2, Shield, User, Armchair, CalendarOff, Search, Pencil } from "lucide-react";
 
 export default function SynagogueManage() {
   const { id } = useParams<{ id: string }>();
@@ -101,14 +101,18 @@ function MembersTab({ synagogueId, canManage }: { synagogueId: string; canManage
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<{ profileId: string; fullName: string; phone: string } | null>(null);
+  const [editPhone, setEditPhone] = useState("");
 
   const { data: members, isLoading } = useQuery({
     queryKey: ["members", synagogueId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("synagogue_members")
-        .select("*, profiles(id, username, full_name)")
+        .select("*, profiles(id, username, full_name, phone)")
         .eq("synagogue_id", synagogueId);
       if (error) throw error;
       return data;
@@ -117,9 +121,8 @@ function MembersTab({ synagogueId, canManage }: { synagogueId: string; canManage
 
   const addMemberMutation = useMutation({
     mutationFn: async () => {
-      // Use edge function to create user + add as member
       const { data, error } = await supabase.functions.invoke("add-member", {
-        body: { username, password, full_name: fullName, synagogue_id: synagogueId },
+        body: { username, password, full_name: fullName, synagogue_id: synagogueId, phone: phone || undefined },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -131,7 +134,28 @@ function MembersTab({ synagogueId, canManage }: { synagogueId: string; canManage
       setUsername("");
       setPassword("");
       setFullName("");
+      setPhone("");
       toast({ title: "מתפלל נוסף בהצלחה!" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const updateMemberMutation = useMutation({
+    mutationFn: async ({ profileId, phone }: { profileId: string; phone: string }) => {
+      const { data, error } = await supabase.functions.invoke("update-member", {
+        body: { profile_id: profileId, synagogue_id: synagogueId, phone },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["members", synagogueId] });
+      setEditDialogOpen(false);
+      setEditingMember(null);
+      toast({ title: "הטלפון עודכן בהצלחה!" });
     },
     onError: (e: Error) => {
       toast({ title: "שגיאה", description: e.message, variant: "destructive" });
@@ -175,6 +199,10 @@ function MembersTab({ synagogueId, canManage }: { synagogueId: string; canManage
                 <div className="space-y-2">
                   <Label>שם מלא</Label>
                   <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required placeholder="ישראל ישראלי" />
+                </div>
+                <div className="space-y-2">
+                  <Label>טלפון</Label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="050-1234567" dir="ltr" className="text-left" />
                 </div>
                 <div className="space-y-2">
                   <Label>שם משתמש</Label>
@@ -227,19 +255,40 @@ function MembersTab({ synagogueId, canManage }: { synagogueId: string; canManage
                     <div>
                       <p className="font-medium text-sm">{(m.profiles as any)?.full_name}</p>
                       <p className="text-xs text-muted-foreground">{(m.profiles as any)?.username}</p>
+                      {(m.profiles as any)?.phone && (
+                        <span dir="ltr" className="text-xs text-muted-foreground inline-block text-left">{(m.profiles as any).phone}</span>
+                      )}
                     </div>
                   </div>
                   {canManage && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive"
-                      onClick={() => {
-                        if (confirm("להסיר את המתפלל?")) removeMutation.mutate(m.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          setEditingMember({
+                            profileId: (m.profiles as any)?.id,
+                            fullName: (m.profiles as any)?.full_name || "",
+                            phone: (m.profiles as any)?.phone || "",
+                          });
+                          setEditPhone((m.profiles as any)?.phone || "");
+                          setEditDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => {
+                          if (confirm("להסיר את המתפלל?")) removeMutation.mutate(m.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -247,6 +296,32 @@ function MembersTab({ synagogueId, canManage }: { synagogueId: string; canManage
           </>
         )}
       </CardContent>
+
+      {/* Edit member dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent dir="rtl" className="text-right">
+          <DialogHeader>
+            <DialogTitle>עריכת מתפלל - {editingMember?.fullName}</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (editingMember) {
+                updateMemberMutation.mutate({ profileId: editingMember.profileId, phone: editPhone });
+              }
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label>טלפון</Label>
+              <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="050-1234567" dir="ltr" className="text-left" />
+            </div>
+            <Button type="submit" className="w-full" disabled={updateMemberMutation.isPending}>
+              {updateMemberMutation.isPending ? "שומר..." : "שמור"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -259,14 +334,18 @@ function GabbaisTab({ synagogueId, canManage }: { synagogueId: string; canManage
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingGabbai, setEditingGabbai] = useState<{ profileId: string; fullName: string; phone: string } | null>(null);
+  const [editPhone, setEditPhone] = useState("");
 
   const { data: gabbais, isLoading } = useQuery({
     queryKey: ["gabbais", synagogueId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")
-        .select("*, profiles:user_id(id, username, full_name)")
+        .select("*, profiles:user_id(id, username, full_name, phone)")
         .eq("synagogue_id", synagogueId)
         .eq("role", "gabbai");
       if (error) throw error;
@@ -277,7 +356,7 @@ function GabbaisTab({ synagogueId, canManage }: { synagogueId: string; canManage
   const addGabbaiMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("add-member", {
-        body: { username, password, full_name: fullName, synagogue_id: synagogueId, role: "gabbai" },
+        body: { username, password, full_name: fullName, synagogue_id: synagogueId, role: "gabbai", phone: phone || undefined },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -290,7 +369,28 @@ function GabbaisTab({ synagogueId, canManage }: { synagogueId: string; canManage
       setUsername("");
       setPassword("");
       setFullName("");
+      setPhone("");
       toast({ title: "גבאי נוסף בהצלחה!" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const updateGabbaiMutation = useMutation({
+    mutationFn: async ({ profileId, phone }: { profileId: string; phone: string }) => {
+      const { data, error } = await supabase.functions.invoke("update-member", {
+        body: { profile_id: profileId, synagogue_id: synagogueId, phone },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gabbais", synagogueId] });
+      setEditDialogOpen(false);
+      setEditingGabbai(null);
+      toast({ title: "הטלפון עודכן בהצלחה!" });
     },
     onError: (e: Error) => {
       toast({ title: "שגיאה", description: e.message, variant: "destructive" });
@@ -334,6 +434,10 @@ function GabbaisTab({ synagogueId, canManage }: { synagogueId: string; canManage
                 <div className="space-y-2">
                   <Label>שם מלא</Label>
                   <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required placeholder="ישראל ישראלי" />
+                </div>
+                <div className="space-y-2">
+                  <Label>טלפון</Label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="050-1234567" dir="ltr" className="text-left" />
                 </div>
                 <div className="space-y-2">
                   <Label>שם משתמש</Label>
@@ -386,19 +490,40 @@ function GabbaisTab({ synagogueId, canManage }: { synagogueId: string; canManage
                     <div>
                       <p className="font-medium text-sm">{(g.profiles as any)?.full_name}</p>
                       <p className="text-xs text-muted-foreground">{(g.profiles as any)?.username}</p>
+                      {(g.profiles as any)?.phone && (
+                        <span dir="ltr" className="text-xs text-muted-foreground inline-block text-left">{(g.profiles as any).phone}</span>
+                      )}
                     </div>
                   </div>
                   {canManage && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive"
-                      onClick={() => {
-                        if (confirm("להסיר את הגבאי?")) removeGabbaiMutation.mutate(g.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          setEditingGabbai({
+                            profileId: (g.profiles as any)?.id,
+                            fullName: (g.profiles as any)?.full_name || "",
+                            phone: (g.profiles as any)?.phone || "",
+                          });
+                          setEditPhone((g.profiles as any)?.phone || "");
+                          setEditDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => {
+                          if (confirm("להסיר את הגבאי?")) removeGabbaiMutation.mutate(g.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -406,6 +531,32 @@ function GabbaisTab({ synagogueId, canManage }: { synagogueId: string; canManage
           </>
         )}
       </CardContent>
+
+      {/* Edit gabbai dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent dir="rtl" className="text-right">
+          <DialogHeader>
+            <DialogTitle>עריכת גבאי - {editingGabbai?.fullName}</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (editingGabbai) {
+                updateGabbaiMutation.mutate({ profileId: editingGabbai.profileId, phone: editPhone });
+              }
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label>טלפון</Label>
+              <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="050-1234567" dir="ltr" className="text-left" />
+            </div>
+            <Button type="submit" className="w-full" disabled={updateGabbaiMutation.isPending}>
+              {updateGabbaiMutation.isPending ? "שומר..." : "שמור"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
