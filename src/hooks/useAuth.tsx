@@ -31,68 +31,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (authId: string) => {
-    try {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, username, full_name, requires_password_change")
-        .eq("auth_id", authId)
-        .single();
-      if (data) {
-        setProfile(data);
-        const { data: rolesData } = await supabase
-          .from("user_roles")
-          .select("role, synagogue_id")
-          .eq("user_id", data.id);
-        setRoles(rolesData || []);
-      }
-    } catch (e) {
-      console.warn("fetchProfile error:", e);
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, username, full_name, requires_password_change")
+      .eq("auth_id", authId)
+      .single();
+    if (data) {
+      setProfile(data);
+      const { data: rolesData } = await supabase
+        .from("user_roles")
+        .select("role, synagogue_id")
+        .eq("user_id", data.id);
+      setRoles(rolesData || []);
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    // Global safety timeout – always fires to prevent infinite loading
-    const timeout = setTimeout(() => {
-      setLoading((prev) => {
-        if (prev) console.warn("Auth loading timeout – releasing loading state");
-        return false;
-      });
-    }, 5000);
-
-    let lastAuthId: string | null = null;
-
-    const handleSession = (session: Session | null) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        // Only skip if we already fetched for this exact user
-        if (lastAuthId !== session.user.id) {
-          lastAuthId = session.user.id;
-          fetchProfile(session.user.id);
-        }
-      } else {
-        lastAuthId = null;
-        setProfile(null);
-        setRoles([]);
-        setLoading(false);
-      }
-    };
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        handleSession(session);
+      async (_event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        } else {
+          setProfile(null);
+          setRoles([]);
+          setLoading(false);
+        }
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSession(session);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        await fetchProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
     });
 
-    return () => {
-      clearTimeout(timeout);
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const toAsciiEmail = (name: string): string => {
@@ -125,16 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    // Clear state immediately to avoid hanging on LockManager in iframe
-    setUser(null);
-    setSession(null);
-    setProfile(null);
-    setRoles([]);
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.warn("signOut error (ignored):", e);
-    }
+    await supabase.auth.signOut();
   };
 
   const isSuperAdmin = roles.some((r) => r.role === "super_admin" && !r.synagogue_id);
