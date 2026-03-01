@@ -31,53 +31,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (authId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, username, full_name, requires_password_change")
-      .eq("auth_id", authId)
-      .single();
-    if (data) {
-      setProfile(data);
-      const { data: rolesData } = await supabase
-        .from("user_roles")
-        .select("role, synagogue_id")
-        .eq("user_id", data.id);
-      setRoles(rolesData || []);
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username, full_name, requires_password_change")
+        .eq("auth_id", authId)
+        .single();
+      if (data) {
+        setProfile(data);
+        const { data: rolesData } = await supabase
+          .from("user_roles")
+          .select("role, synagogue_id")
+          .eq("user_id", data.id);
+        setRoles(rolesData || []);
+      }
+    } catch (e) {
+      console.warn("fetchProfile error:", e);
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    // Safety timeout to prevent infinite loading (LockManager issue in iframe)
+    // Global safety timeout – always fires to prevent infinite loading
     const timeout = setTimeout(() => {
       setLoading((prev) => {
         if (prev) console.warn("Auth loading timeout – releasing loading state");
         return false;
       });
-    }, 3000);
+    }, 5000);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-          setRoles([]);
-          setLoading(false);
-        }
-      }
-    );
+    let lastAuthId: string | null = null;
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const handleSession = (session: Session | null) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        await fetchProfile(session.user.id);
+        // Only skip if we already fetched for this exact user
+        if (lastAuthId !== session.user.id) {
+          lastAuthId = session.user.id;
+          fetchProfile(session.user.id);
+        }
       } else {
+        lastAuthId = null;
+        setProfile(null);
+        setRoles([]);
         setLoading(false);
       }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        handleSession(session);
+      }
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSession(session);
     });
 
     return () => {
