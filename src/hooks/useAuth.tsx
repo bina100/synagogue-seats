@@ -48,6 +48,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Safety timeout to prevent infinite loading (LockManager issue in iframe)
+    const timeout = setTimeout(() => {
+      setLoading((prev) => {
+        if (prev) console.warn("Auth loading timeout – releasing loading state");
+        return false;
+      });
+    }, 10000);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
@@ -72,7 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const toAsciiEmail = (name: string): string => {
