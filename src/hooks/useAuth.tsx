@@ -116,7 +116,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Clear state immediately to avoid hanging on LockManager in iframe
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    setRoles([]);
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("signOut error (ignored):", e);
+    }
   };
 
   const isSuperAdmin = roles.some((r) => r.role === "super_admin" && !r.synagogue_id);
