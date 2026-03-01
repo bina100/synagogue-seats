@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (prev) console.warn("Auth loading timeout – releasing loading state");
         return false;
       });
-    }, 10000);
+    }, 3000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
