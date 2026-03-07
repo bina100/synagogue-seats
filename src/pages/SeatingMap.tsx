@@ -345,70 +345,75 @@ export default function SeatingMap() {
       <div className="space-y-4">
         {/* Actions bar */}
         {canManage && (
-          <div className="flex gap-2 justify-end no-print">
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
-              <Printer className="h-4 w-4" />
-              הדפסה
-            </Button>
-            <Dialog open={importOpen} onOpenChange={(o) => { setImportOpen(o); if (!o) setParsedData(null); }}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Upload className="h-4 w-4" />
-                  ייבוא מאקסל
-                </Button>
-              </DialogTrigger>
-              <DialogContent dir="rtl" className="max-w-md text-right">
-                <DialogHeader>
-                  <DialogTitle>ייבוא מפת מקומות מאקסל</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>בחר קובץ Excel</Label>
-                    <Input
-                      type="file"
-                      accept=".xlsx,.xls"
-                      onChange={handleFileSelect}
-                      className="cursor-pointer"
-                    />
-                  </div>
-
-                  {parsedData && (
-                    <div className="space-y-3">
-                      <div className="rounded-lg border bg-muted/50 p-3 space-y-1">
-                        <p className="text-sm font-medium">נמצאו בקובץ:</p>
-                        <p className="text-sm text-muted-foreground">
-                          {parsedData.length} טורים
-                        </p>
-                        {parsedData.map((s) => (
-                          <p key={s.name} className="text-xs text-muted-foreground">
-                            {s.name}: {s.rows.length} שורות,{" "}
-                            {s.rows.reduce((sum, r) => sum + r.seats.filter(
-                              (seat) => seat.name || seat.element_type
-                            ).length, 0)}{" "}
-                            מקומות
-                          </p>
-                        ))}
-                      </div>
-
-                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-                        <p className="text-xs text-destructive font-medium">
-                          ⚠️ הייבוא ימחק את כל המפה הקיימת ויבנה אותה מחדש
-                        </p>
-                      </div>
-
-                      <Button
-                        onClick={handleImport}
-                        className="w-full gap-2"
-                        disabled={importing}
-                      >
-                        <FileSpreadsheet className="h-4 w-4" />
-                        {importing ? "מייבא..." : "ייבא מפה"}
-                      </Button>
+          <div className="space-y-2 no-print">
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+                <Printer className="h-4 w-4" />
+                הדפסה
+              </Button>
+              <Dialog open={importOpen} onOpenChange={(o) => { setImportOpen(o); if (!o) setParsedData(null); }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Upload className="h-4 w-4" />
+                    ייבוא מאקסל
+                  </Button>
+                </DialogTrigger>
+                <DialogContent dir="rtl" className="max-w-md text-right">
+                  <DialogHeader>
+                    <DialogTitle>ייבוא מפת מקומות מאקסל</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>בחר קובץ Excel</Label>
+                      <Input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={handleFileSelect}
+                        className="cursor-pointer"
+                      />
                     </div>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
+
+                    {parsedData && (
+                      <div className="space-y-3">
+                        <div className="rounded-lg border bg-muted/50 p-3 space-y-1">
+                          <p className="text-sm font-medium">נמצאו בקובץ:</p>
+                          <p className="text-sm text-muted-foreground">
+                            {parsedData.length} טורים
+                          </p>
+                          {parsedData.map((s) => (
+                            <p key={s.name} className="text-xs text-muted-foreground">
+                              {s.name}: {s.rows.length} שורות,{" "}
+                              {s.rows.reduce((sum, r) => sum + r.seats.filter(
+                                (seat) => seat.name || seat.element_type
+                              ).length, 0)}{" "}
+                              מקומות
+                            </p>
+                          ))}
+                        </div>
+
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                          <p className="text-xs text-destructive font-medium">
+                            ⚠️ הייבוא ימחק את כל המפה הקיימת ויבנה אותה מחדש
+                          </p>
+                        </div>
+
+                        <Button
+                          onClick={handleImport}
+                          className="w-full gap-2"
+                          disabled={importing}
+                        >
+                          <FileSpreadsheet className="h-4 w-4" />
+                          {importing ? "מייבא..." : "ייבא מפה"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Edit Map - Sections Management */}
+            <SectionsManager synagogueId={synagogueId!} />
           </div>
         )}
 
