@@ -16,7 +16,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download, Printer } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download, Printer, LayoutGrid, Pencil, Search, ChevronDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SeatCell from "@/components/seating/SeatCell";
 import StructuralElement from "@/components/seating/StructuralElement";
