@@ -16,7 +16,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download, Printer } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download, Printer, LayoutGrid, Pencil, Search, ChevronDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SeatCell from "@/components/seating/SeatCell";
 import StructuralElement from "@/components/seating/StructuralElement";
@@ -344,70 +345,75 @@ export default function SeatingMap() {
       <div className="space-y-4">
         {/* Actions bar */}
         {canManage && (
-          <div className="flex gap-2 justify-end no-print">
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
-              <Printer className="h-4 w-4" />
-              הדפסה
-            </Button>
-            <Dialog open={importOpen} onOpenChange={(o) => { setImportOpen(o); if (!o) setParsedData(null); }}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Upload className="h-4 w-4" />
-                  ייבוא מאקסל
-                </Button>
-              </DialogTrigger>
-              <DialogContent dir="rtl" className="max-w-md text-right">
-                <DialogHeader>
-                  <DialogTitle>ייבוא מפת מקומות מאקסל</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>בחר קובץ Excel</Label>
-                    <Input
-                      type="file"
-                      accept=".xlsx,.xls"
-                      onChange={handleFileSelect}
-                      className="cursor-pointer"
-                    />
-                  </div>
-
-                  {parsedData && (
-                    <div className="space-y-3">
-                      <div className="rounded-lg border bg-muted/50 p-3 space-y-1">
-                        <p className="text-sm font-medium">נמצאו בקובץ:</p>
-                        <p className="text-sm text-muted-foreground">
-                          {parsedData.length} טורים
-                        </p>
-                        {parsedData.map((s) => (
-                          <p key={s.name} className="text-xs text-muted-foreground">
-                            {s.name}: {s.rows.length} שורות,{" "}
-                            {s.rows.reduce((sum, r) => sum + r.seats.filter(
-                              (seat) => seat.name || seat.element_type
-                            ).length, 0)}{" "}
-                            מקומות
-                          </p>
-                        ))}
-                      </div>
-
-                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-                        <p className="text-xs text-destructive font-medium">
-                          ⚠️ הייבוא ימחק את כל המפה הקיימת ויבנה אותה מחדש
-                        </p>
-                      </div>
-
-                      <Button
-                        onClick={handleImport}
-                        className="w-full gap-2"
-                        disabled={importing}
-                      >
-                        <FileSpreadsheet className="h-4 w-4" />
-                        {importing ? "מייבא..." : "ייבא מפה"}
-                      </Button>
+          <div className="space-y-2 no-print">
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+                <Printer className="h-4 w-4" />
+                הדפסה
+              </Button>
+              <Dialog open={importOpen} onOpenChange={(o) => { setImportOpen(o); if (!o) setParsedData(null); }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Upload className="h-4 w-4" />
+                    ייבוא מאקסל
+                  </Button>
+                </DialogTrigger>
+                <DialogContent dir="rtl" className="max-w-md text-right">
+                  <DialogHeader>
+                    <DialogTitle>ייבוא מפת מקומות מאקסל</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>בחר קובץ Excel</Label>
+                      <Input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={handleFileSelect}
+                        className="cursor-pointer"
+                      />
                     </div>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
+
+                    {parsedData && (
+                      <div className="space-y-3">
+                        <div className="rounded-lg border bg-muted/50 p-3 space-y-1">
+                          <p className="text-sm font-medium">נמצאו בקובץ:</p>
+                          <p className="text-sm text-muted-foreground">
+                            {parsedData.length} טורים
+                          </p>
+                          {parsedData.map((s) => (
+                            <p key={s.name} className="text-xs text-muted-foreground">
+                              {s.name}: {s.rows.length} שורות,{" "}
+                              {s.rows.reduce((sum, r) => sum + r.seats.filter(
+                                (seat) => seat.name || seat.element_type
+                              ).length, 0)}{" "}
+                              מקומות
+                            </p>
+                          ))}
+                        </div>
+
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                          <p className="text-xs text-destructive font-medium">
+                            ⚠️ הייבוא ימחק את כל המפה הקיימת ויבנה אותה מחדש
+                          </p>
+                        </div>
+
+                        <Button
+                          onClick={handleImport}
+                          className="w-full gap-2"
+                          disabled={importing}
+                        >
+                          <FileSpreadsheet className="h-4 w-4" />
+                          {importing ? "מייבא..." : "ייבא מפה"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Edit Map - Sections Management */}
+            <SectionsManager synagogueId={synagogueId!} />
           </div>
         )}
 
@@ -590,5 +596,159 @@ export default function SeatingMap() {
         </DialogContent>
       </Dialog>
     </AppLayout>
+  );
+}
+
+// ============ Sections Manager (Edit Map) ============
+function SectionsManager({ synagogueId }: { synagogueId: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [sectionName, setSectionName] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const { data: sections } = useQuery({
+    queryKey: ["sections", synagogueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sections")
+        .select("*")
+        .eq("synagogue_id", synagogueId)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("sections").insert({
+        synagogue_id: synagogueId,
+        name: sectionName,
+        sort_order: (sections?.length || 0) + 1,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sections", synagogueId] });
+      queryClient.invalidateQueries({ queryKey: ["full_seating_map", synagogueId] });
+      setDialogOpen(false);
+      setSectionName("");
+      toast({ title: "מחלקה נוצרה בהצלחה!" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (sectionId: string) => {
+      const { error } = await supabase.from("sections").delete().eq("id", sectionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sections", synagogueId] });
+      queryClient.invalidateQueries({ queryKey: ["full_seating_map", synagogueId] });
+      toast({ title: "מחלקה נמחקה" });
+    },
+  });
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <Button variant="outline" className="w-full gap-2 justify-between">
+          <span className="flex items-center gap-2">
+            <Pencil className="h-4 w-4" />
+            עריכת מפה - ניהול מחלקות
+          </span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <Card className="mt-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-base">מחלקות</CardTitle>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  הוסף מחלקה
+                </Button>
+              </DialogTrigger>
+              <DialogContent dir="rtl" className="text-right">
+                <DialogHeader>
+                  <DialogTitle>מחלקה חדשה</DialogTitle>
+                </DialogHeader>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    createMutation.mutate();
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="space-y-2">
+                    <Label>שם המחלקה</Label>
+                    <Input
+                      value={sectionName}
+                      onChange={(e) => setSectionName(e.target.value)}
+                      required
+                      placeholder='לדוגמה: אולם ראשי / עזרת נשים'
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={createMutation.isPending}>
+                    {createMutation.isPending ? "יוצר..." : "צור מחלקה"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {!sections?.length ? (
+              <p className="text-muted-foreground text-center py-4 text-sm">אין מחלקות עדיין</p>
+            ) : (
+              <>
+                {sections.length > 5 && (
+                  <div className="relative mb-3">
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="חפש מחלקה..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pr-9 text-right"
+                      dir="rtl"
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  {sections
+                    .filter((s) => !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                    .map((s) => (
+                      <div key={s.id} className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent">
+                            <LayoutGrid className="h-4 w-4 text-accent-foreground" />
+                          </div>
+                          <p className="font-medium text-sm">{s.name}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => {
+                            if (confirm("למחוק את המחלקה?")) deleteMutation.mutate(s.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
