@@ -53,14 +53,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    let resolved = false;
     // Timeout fallback to prevent infinite loading in preview/iframe environments
     const timeout = setTimeout(() => {
-      setLoading(false);
+      if (!resolved) {
+        console.warn("Auth timeout fallback triggered");
+        setLoading(false);
+      }
     }, 3000);
+
+    const markResolved = () => {
+      resolved = true;
+      clearTimeout(timeout);
+    };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        clearTimeout(timeout);
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
@@ -70,16 +78,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setRoles([]);
           setLoading(false);
         }
+        markResolved();
       }
     );
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      clearTimeout(timeout);
+      if (resolved) return; // already handled by onAuthStateChange
+      markResolved();
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         await fetchProfile(session.user.id);
       } else {
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (!resolved) {
+        markResolved();
         setLoading(false);
       }
     });
