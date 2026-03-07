@@ -1,32 +1,43 @@
 
 
-# תיקון RTL בפופאפים + הסרת הרשמה מדף כניסה
+# תיקון בעיית הטעינה האינסופית
 
-## 1. תיקון גלובלי ל-RTL בכל הדיאלוגים
+## הבעיה שזוהתה
 
-### הבעיה
-ב-`DialogHeader` של shadcn יש class קבוע: `sm:text-left` שדורס את כיווניות ה-RTL במסכים גדולים. גם אם מוסיפים `dir="rtl"` ו-`text-right` ל-`DialogContent`, הכותרת עדיין נדחפת שמאלה.
+מהסקירה של הקוד, הלוגים, וצילום המסך, זיהיתי את הבעיה המדויקת:
 
-### הפתרון
-תיקון חד-פעמי בקובץ `src/components/ui/dialog.tsx` - שינוי `sm:text-left` ל-`sm:text-right` ב-`DialogHeader`. זה יתקן את כל הפופאפים במערכת בבת אחת.
+בקובץ `useAuth.tsx`, ה-callback של `onAuthStateChange` משתמש ב-`await` על `fetchProfile`. זה **חוסם את ה-callback** ומונע מ-Supabase לסיים את תהליך האימות. התוצאה:
+- הפרופיל לא נטען (רואים "שלום," בלי שם)
+- שאילתות Supabase נוספות (כמו רשימת בתי כנסת) נתקעות כי ה-client במצב לא תקין
+- מסך "טוען..." נשאר לנצח
 
-**קובץ: `src/components/ui/dialog.tsx` (שורה 55)**
+צילום המסך מאשר: הכותרת מציגה "שלום," (בלי שם) והתוכן תקוע על "טוען..."
 
-| לפני | אחרי |
-|---|---|
-| `text-center sm:text-left` | `text-center sm:text-right` |
+## הפתרון
 
-בנוסף, נוסיף `dir="rtl" className="text-right"` לכל `DialogContent` שעדיין חסר:
-- `src/pages/SynagogueManage.tsx` - 3 דיאלוגים (שורות 164, 323, 477)
-- `src/pages/Dashboard.tsx` - דיאלוג אחד (שורה 104)
+### קובץ: `src/hooks/useAuth.tsx`
 
-## 2. הסרת הרשמה מדף כניסה
+שינוי אחד קריטי: **להסיר את `await`** מקריאות `fetchProfile` בתוך `onAuthStateChange` ו-`getSession`. הפונקציה `fetchProfile` כבר מטפלת ב-`setLoading(false)` ב-`finally`, אז אין צורך לחכות לה.
 
-### קובץ: `src/pages/Auth.tsx`
-- הסרת ה-state של `isLogin` ו-`fullName`
-- הסרת ה-branch של signUp מ-handleSubmit
-- הסרת שדה "שם מלא"
-- הסרת כפתור "אין לך חשבון? הירשם כאן"
-- הכותרת המשנית תהיה קבועה: "הכנס לחשבונך"
-- הסרת import של `signUp` מ-useAuth
+**לפני:**
+```typescript
+async (_event, session) => {
+  ...
+  if (session?.user) {
+    await fetchProfile(session.user.id);  // ← חוסם!
+  }
+```
+
+**אחרי:**
+```typescript
+(_event, session) => {
+  ...
+  if (session?.user) {
+    fetchProfile(session.user.id);  // ← לא חוסם
+  }
+```
+
+אותו שינוי גם ב-`getSession().then()` - להסיר `async/await` ולתת ל-`fetchProfile` לרוץ ברקע.
+
+זה שינוי של שורות בודדות שפותר את שלוש הבעיות בבת אחת.
 
