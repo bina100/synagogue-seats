@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import SynagogueManage from "./pages/SynagogueManage";
 import SeatingMap from "./pages/SeatingMap";
 import AbsenceManager from "./pages/AbsenceManager";
+import SynagogueSettings from "./pages/SynagogueSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="/synagogue/:id" element={<ProtectedRoute><SynagogueManage /></ProtectedRoute>} />
             <Route path="/synagogue/:id/seating" element={<ProtectedRoute><SeatingMap /></ProtectedRoute>} />
             <Route path="/synagogue/:id/absences" element={<ProtectedRoute><AbsenceManager /></ProtectedRoute>} />
+            <Route path="/synagogue/:id/settings" element={<ProtectedRoute><SynagogueSettings /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
