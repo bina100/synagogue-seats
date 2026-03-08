@@ -170,58 +170,26 @@
       border: none !important;
       box-shadow: none !important;
       padding: 0 !important;
+      transform: scale(0.48);
+      transform-origin: top center;
     }
 
     .print-floor-plan > div {
       padding: 2px !important;
     }
 
-    /* Scale sections to fill the page evenly */
-    .print-floor-plan .flex.gap-1.min-w-max {
-      gap: 2px !important;
-      min-width: 0 !important;
-      width: 100% !important;
-      justify-content: space-evenly !important;
-    }
-
-    .print-floor-plan .flex.gap-1 > .flex.gap-1 {
-      flex: 1 1 0 !important;
-      gap: 1px !important;
-    }
-
-    .print-floor-plan .flex.flex-col.items-center.gap-1 {
-      gap: 1px !important;
-      width: 100% !important;
-    }
-
-    .print-floor-plan .flex.gap-1.items-center {
-      gap: 1px !important;
-      justify-content: center !important;
-    }
-
-    .print-floor-plan .mx-0\.5 {
-      margin-left: 1px !important;
-      margin-right: 1px !important;
-    }
-
     .print-floor-plan .print-seat {
-      width: 30px !important;
-      min-width: 30px !important;
-      height: 30px !important;
-      min-height: 30px !important;
-      font-size: 5px !important;
-      padding: 1px !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
 
     .print-floor-plan .text-\[10px\] {
-      font-size: 7px !important;
+      font-size: 9px !important;
     }
 
     .print-floor-plan .rounded-xl.border-2 {
       padding: 4px 12px !important;
-      font-size: 10px !important;
+      font-size: 12px !important;
     }
 
     .print-only {
