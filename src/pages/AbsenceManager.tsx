@@ -342,7 +342,23 @@ export default function AbsenceManager() {
                 <UserMinus className="h-4 w-4" />
                 סמן היעדרות למתפלל
               </Button>
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => {
+                const floorPlan = document.querySelector('.print-floor-plan') as HTMLElement;
+                if (floorPlan) {
+                  const scrollContainer = floorPlan.querySelector('.overflow-x-auto') as HTMLElement;
+                  if (scrollContainer) {
+                    const contentWidth = scrollContainer.scrollWidth;
+                    const pageWidth = 277 * 3.78;
+                    const zoomX = pageWidth / contentWidth;
+                    const optimalZoom = Math.min(zoomX, 1);
+                    floorPlan.style.zoom = String(optimalZoom);
+                  }
+                }
+                window.print();
+                window.onafterprint = () => {
+                  if (floorPlan) floorPlan.style.zoom = '';
+                };
+              }}>
                 <Printer className="h-4 w-4" />
                 הדפס מקומות פנויים
               </Button>
