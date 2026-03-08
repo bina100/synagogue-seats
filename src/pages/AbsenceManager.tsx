@@ -556,22 +556,28 @@ export default function AbsenceManager() {
                                 let borderClass: string;
                                 let textClass: string;
 
+                                let printClass: string;
+
                                 if (isCurrentUser) {
                                   bgClass = "bg-teal-100";
                                   borderClass = "border-teal-500";
                                   textClass = "text-teal-900 font-bold";
+                                  printClass = "print-seat-occupied";
                                 } else if (!isAssigned) {
                                   bgClass = "bg-muted/50";
                                   borderClass = "border-border";
                                   textClass = "text-muted-foreground";
+                                  printClass = "print-seat-empty";
                                 } else if (isSeatAbsent) {
                                   bgClass = "bg-success/15";
                                   borderClass = "border-success/40";
                                   textClass = "text-success";
+                                  printClass = "print-seat-available";
                                 } else {
                                   bgClass = "bg-destructive/15";
                                   borderClass = "border-destructive/40";
                                   textClass = "text-destructive";
+                                  printClass = "print-seat-occupied";
                                 }
 
                                 return (
