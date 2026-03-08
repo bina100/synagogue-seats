@@ -347,7 +347,27 @@ export default function SeatingMap() {
         {canManage && (
           <div className="space-y-2 no-print">
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => {
+                const floorPlan = document.querySelector('.print-floor-plan') as HTMLElement;
+                if (floorPlan) {
+                  const scrollContainer = floorPlan.querySelector('.overflow-x-auto') as HTMLElement;
+                  if (scrollContainer) {
+                    const contentWidth = scrollContainer.scrollWidth;
+                    const contentHeight = scrollContainer.scrollHeight;
+                    // A4 landscape printable area (~277mm × 190mm) at 96dpi
+                    const pageWidth = 277 * 3.78;
+                    const pageHeight = 190 * 3.78;
+                    const zoomX = pageWidth / contentWidth;
+                    const zoomY = pageHeight / contentHeight;
+                    const optimalZoom = Math.min(zoomX, zoomY, 1);
+                    floorPlan.style.zoom = String(optimalZoom);
+                  }
+                }
+                window.print();
+                window.onafterprint = () => {
+                  if (floorPlan) floorPlan.style.zoom = '';
+                };
+              }}>
                 <Printer className="h-4 w-4" />
                 הדפסה
               </Button>
