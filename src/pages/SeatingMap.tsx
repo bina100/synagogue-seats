@@ -903,8 +903,8 @@ export default function SeatingMap() {
                           }
                           if (isBimaRow) return <div key={row.id} className="h-10" />;
 
-                          const regularSeats = (row.seats || []).filter(
-                            (s: any) => !s.element_type || s.element_type === "empty" || s.element_type === "blocked"
+                          const draggableSeats = (row.seats || []).filter(
+                            (s: any) => !s.element_type || s.element_type === "empty" || s.element_type === "blocked" || s.element_type === "amud"
                           );
 
                           return (
@@ -926,55 +926,53 @@ export default function SeatingMap() {
                                 </button>
                               )}
 
-                              {regularSeats.map((seat: any) => (
-                                editMode ? (
-                                  <button
-                                    key={seat.id}
-                                    className={`
-                                      relative flex flex-col items-center justify-center
-                                      w-14 h-14 sm:w-16 sm:h-16 rounded-md border text-xs font-medium transition-all cursor-pointer
-                                      ${seat.element_type === "blocked"
-                                        ? "bg-orange-100 border-orange-400 text-orange-700 border-dashed"
-                                        : seat.assigned_to
-                                          ? "bg-primary/15 border-primary/40 text-primary hover:bg-primary/25"
-                                          : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
-                                      }
-                                    `}
-                                    onClick={() => setEditSeat(seat)}
-                                    title={`ערוך מקום ${seat.seat_number}`}
+                              {editMode ? (
+                                <DndContext
+                                  sensors={sensors}
+                                  collisionDetection={closestCenter}
+                                  onDragEnd={(e) => handleDragEnd(e, sIdx, rowIdx, draggableSeats)}
+                                >
+                                  <SortableContext
+                                    items={draggableSeats.map((s: any) => s.id)}
+                                    strategy={horizontalListSortingStrategy}
                                   >
-                                    {seat.element_type === "blocked" ? (
-                                      <>
-                                        <Armchair className="h-3.5 w-3.5 mb-0.5 opacity-40" />
-                                        <span className="text-[7px]">חסום</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Armchair className="h-3.5 w-3.5 mb-0.5" />
-                                        <span className="text-[8px] leading-tight text-center whitespace-normal break-words max-w-[44px]">
-                                          {seat.assigned_to ? (seat.profiles?.full_name || "תפוס") : seat.seat_number}
-                                        </span>
-                                      </>
-                                    )}
-                                    <Pencil className="absolute top-0.5 left-0.5 h-2.5 w-2.5 text-muted-foreground/50" />
-                                  </button>
-                                ) : (
-                                  <SeatCell
-                                    key={seat.id}
-                                    seat={seat}
-                                    members={members || []}
-                                    canManage={canManage}
-                                    onAssign={handleAssign}
-                                    currentUserProfileId={profile?.id}
-                                    isAbsent={seat.assigned_to === profile?.id ? absentSeatIds.has(seat.id) : undefined}
-                                    onToggleAbsence={seat.assigned_to === profile?.id ? () => handleToggleAbsence(seat.id) : undefined}
-                                    isAbsentForGabbai={canManage && seat.assigned_to ? allAbsentSeatIds.has(seat.id) : undefined}
-                                    onToggleGabbaiAbsence={canManage && seat.assigned_to ? () => handleToggleGabbaiAbsence(seat.id, seat.assigned_to) : undefined}
-                                    myRef={seat.assigned_to === profile?.id ? userSeatCallbackRef : undefined}
-                                    shabbatLabel={shabbatLabel}
-                                  />
-                                )
-                              ))}
+                                    <div className="flex gap-1 items-center">
+                                      {draggableSeats.map((seat: any) => (
+                                        <DraggableSeat
+                                          key={seat.id}
+                                          seat={seat}
+                                          onClickSeat={setEditSeat}
+                                          onInsertAmud={editInsertAmud}
+                                          editMode={true}
+                                        />
+                                      ))}
+                                    </div>
+                                  </SortableContext>
+                                </DndContext>
+                              ) : (
+                                draggableSeats.filter((s: any) => s.element_type !== "amud").map((seat: any) => (
+                                  seat.element_type === "amud" ? (
+                                    <div key={seat.id} className="flex items-center justify-center">
+                                      <div className="h-6 w-6 rounded-full border-2 border-muted-foreground/30 bg-muted" title="עמוד" />
+                                    </div>
+                                  ) : (
+                                    <SeatCell
+                                      key={seat.id}
+                                      seat={seat}
+                                      members={members || []}
+                                      canManage={canManage}
+                                      onAssign={handleAssign}
+                                      currentUserProfileId={profile?.id}
+                                      isAbsent={seat.assigned_to === profile?.id ? absentSeatIds.has(seat.id) : undefined}
+                                      onToggleAbsence={seat.assigned_to === profile?.id ? () => handleToggleAbsence(seat.id) : undefined}
+                                      isAbsentForGabbai={canManage && seat.assigned_to ? allAbsentSeatIds.has(seat.id) : undefined}
+                                      onToggleGabbaiAbsence={canManage && seat.assigned_to ? () => handleToggleGabbaiAbsence(seat.id, seat.assigned_to) : undefined}
+                                      myRef={seat.assigned_to === profile?.id ? userSeatCallbackRef : undefined}
+                                      shabbatLabel={shabbatLabel}
+                                    />
+                                  )
+                                ))
+                              )}
 
                               {/* Add seat button */}
                               {editMode && (
