@@ -1082,7 +1082,44 @@ export default function SeatingMap() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Row Confirm (double confirm for assigned) */}
+      {/* Aron Kodesh Settings */}
+      <Dialog open={aronKodeshSettings} onOpenChange={setAronKodeshSettings}>
+        <DialogContent dir="rtl" className="text-right max-w-xs">
+          <DialogHeader><DialogTitle>הגדרות ארון קודש</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>רוחב (פיקסלים)</Label>
+              <Input type="number" min={80} max={600} value={aronWidth} onChange={e => setAronWidth(Number(e.target.value))} />
+            </div>
+            <div className="space-y-2">
+              <Label>גובה (פיקסלים)</Label>
+              <Input type="number" min={30} max={200} value={aronHeight} onChange={e => setAronHeight(Number(e.target.value))} />
+            </div>
+            <div className="space-y-2">
+              <Label>מיקום</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant={aronPosition === "top" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setAronPosition("top")}
+                >
+                  למעלה
+                </Button>
+                <Button
+                  variant={aronPosition === "bottom" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setAronPosition("bottom")}
+                >
+                  למטה
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!deleteRowConfirm} onOpenChange={(o) => { if (!o) setDeleteRowConfirm(null); }}>
         <AlertDialogContent dir="rtl" className="text-right">
           <AlertDialogHeader>
