@@ -620,6 +620,14 @@ export default function SeatingMap() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* New Map Wizard */}
+      <NewMapWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        synagogueId={synagogueId!}
+        hasExistingMap={!!sections?.length}
+      />
     </AppLayout>
   );
 }
