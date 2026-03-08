@@ -21,6 +21,7 @@ import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download, Printer, Lay
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SeatCell from "@/components/seating/SeatCell";
 import StructuralElement from "@/components/seating/StructuralElement";
+import NewMapWizard from "@/components/seating/NewMapWizard";
 import { parseSeatingExcel, type ParsedSection } from "@/lib/parseSeatingExcel";
 import { getNextShabbat, getNextEventLabel } from "@/lib/hebrewDates";
 
@@ -248,6 +249,7 @@ export default function SeatingMap() {
   }, [allAbsentSeatIds, cancelGabbaiAbsenceMutation, markGabbaiAbsenceMutation]);
   // ========== Excel Import ==========
   const [importOpen, setImportOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedSection[] | null>(null);
   const [importing, setImporting] = useState(false);
   const [createdUsers, setCreatedUsers] = useState<{ fullName: string; username: string; password: string }[]>([]);
@@ -346,7 +348,11 @@ export default function SeatingMap() {
         {/* Actions bar */}
         {canManage && (
           <div className="space-y-2 no-print">
-            <div className="flex gap-2 justify-end">
+            <div className="flex gap-2 justify-end flex-wrap">
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setWizardOpen(true)}>
+                <LayoutGrid className="h-4 w-4" />
+                בנה מפה חדשה
+              </Button>
               <Button variant="outline" size="sm" className="gap-2" onClick={() => {
                 const floorPlan = document.querySelector('.print-floor-plan') as HTMLElement;
                 if (floorPlan) {
@@ -354,12 +360,10 @@ export default function SeatingMap() {
                   if (scrollContainer) {
                     const contentWidth = scrollContainer.scrollWidth;
                     const contentHeight = scrollContainer.scrollHeight;
-                    // A4 landscape printable area (~277mm × 190mm) at 96dpi
                     const pageWidth = 277 * 3.78;
                     const pageHeight = 190 * 3.78;
                     const zoomX = pageWidth / contentWidth;
                     const zoomY = pageHeight / contentHeight;
-                    // Fit width only for readability — height usually fits in landscape
                     const optimalZoom = Math.min(zoomX, 1);
                     floorPlan.style.zoom = String(optimalZoom);
                   }
@@ -445,7 +449,7 @@ export default function SeatingMap() {
               <Armchair className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground text-lg">אין מפת מקומות עדיין</p>
               <p className="text-muted-foreground text-sm mt-2">
-                ייבא קובץ אקסל כדי לבנות את מפת המקומות
+                ייבא קובץ אקסל או בנה מפה חדשה
               </p>
             </CardContent>
           </Card>
@@ -616,6 +620,14 @@ export default function SeatingMap() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* New Map Wizard */}
+      <NewMapWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        synagogueId={synagogueId!}
+        hasExistingMap={!!sections?.length}
+      />
     </AppLayout>
   );
 }

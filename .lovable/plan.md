@@ -1,44 +1,32 @@
 
 
-## תוכנית: אשף בניית מפת מקומות חדשה (NewMapWizard)
+# תיקון RTL בפופאפים + הסרת הרשמה מדף כניסה
 
-### מה נבנה
+## 1. תיקון גלובלי ל-RTL בכל הדיאלוגים
 
-Dialog בן 3 שלבים ליצירת מפת מקומות מאפס, עם תמיכה בבימה וארון קודש מובנים.
+### הבעיה
+ב-`DialogHeader` של shadcn יש class קבוע: `sm:text-left` שדורס את כיווניות ה-RTL במסכים גדולים. גם אם מוסיפים `dir="rtl"` ו-`text-right` ל-`DialogContent`, הכותרת עדיין נדחפת שמאלה.
 
-### השלבים באשף
+### הפתרון
+תיקון חד-פעמי בקובץ `src/components/ui/dialog.tsx` - שינוי `sm:text-left` ל-`sm:text-right` ב-`DialogHeader`. זה יתקן את כל הפופאפים במערכת בבת אחת.
 
-**שלב 1 — מחלקות**
-- כמה מחלקות + שם לכל אחת
-- סימון איפה ארון הקודש (למעלה / למטה)
+**קובץ: `src/components/ui/dialog.tsx` (שורה 55)**
 
-**שלב 2 — שורות ומקומות**
-- לכל מחלקה: כמה שורות, כמה מקומות בשורה
-- אפשרות לסמן "בימה באמצע" — המחלקה מתחלקת לשניים עם שורת בימה ביניהם (המשתמש בוחר אחרי כמה שורות)
-
-**שלב 3 — תצוגה מקדימה ואישור**
-- מציג את המפה כפי שתיראה (משתמש באותו layout של floor plan קיים)
-- כפתור "צור מפה" → batch insert של sections, seat_rows, seats (כולל אלמנטים מבניים)
-
-### מבנה הנתונים שנוצר
-
-כל הנתונים נכתבים לטבלאות הקיימות:
-- `sections` — מחלקה לכל section + sort_order
-- `seat_rows` — שורות רגילות + שורת בימה (עם seat אחד שה-element_type שלו "bima") + שורת ארון קודש
-- `seats` — מקומות רגילים + אלמנטים מבניים (element_type: "bima", "aron_kodesh")
-
-### קבצים
-
-| קובץ | שינוי |
+| לפני | אחרי |
 |---|---|
-| `src/components/seating/NewMapWizard.tsx` | **חדש** — אשף 3 שלבים |
-| `src/pages/SeatingMap.tsx` | הוספת כפתור "בנה מפה חדשה" שפותח את האשף |
+| `text-center sm:text-left` | `text-center sm:text-right` |
 
-### אין מיגרציות
-הסכמה הקיימת מכסה הכל. אין שינויי DB.
+בנוסף, נוסיף `dir="rtl" className="text-right"` לכל `DialogContent` שעדיין חסר:
+- `src/pages/SynagogueManage.tsx` - 3 דיאלוגים (שורות 164, 323, 477)
+- `src/pages/Dashboard.tsx` - דיאלוג אחד (שורה 104)
 
-### הערות טכניות
-- הכתיבה ל-DB תהיה דרך edge function `import-seating-map` שכבר קיימת, או ישירות מה-client ב-batch (insert sections → insert seat_rows → insert seats)
-- RTL מלא
-- אחרי יצירה מוצלחת — invalidate של `full_seating_map` query ורענון המפה
+## 2. הסרת הרשמה מדף כניסה
+
+### קובץ: `src/pages/Auth.tsx`
+- הסרת ה-state של `isLogin` ו-`fullName`
+- הסרת ה-branch של signUp מ-handleSubmit
+- הסרת שדה "שם מלא"
+- הסרת כפתור "אין לך חשבון? הירשם כאן"
+- הכותרת המשנית תהיה קבועה: "הכנס לחשבונך"
+- הסרת import של `signUp` מ-useAuth
 
