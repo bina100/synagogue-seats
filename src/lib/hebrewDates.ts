@@ -119,9 +119,9 @@ export function getShabbatLabel(dateStr: string): string {
   });
   if (cholHamoed) {
     const desc = cholHamoed.render("he");
-    if (desc.includes("פסח")) return "שבת חול המועד פסח";
-    if (desc.includes("סוכות")) return "שבת חול המועד סוכות";
-    return `שבת ${desc}`;
+    if (desc.includes("פסח")) return 'שבת חוה"מ פסח';
+    if (desc.includes("סוכות")) return 'שבת חוה"מ סוכות';
+    return `שבת חוה"מ`;
   }
 
   // Regular parasha
