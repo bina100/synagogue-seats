@@ -45,8 +45,7 @@ export default function AbsenceManager() {
   // Build combined list of upcoming dates (Shabbats + holidays), sorted and deduplicated
   const upcomingDates = useMemo(() => {
     const shabbats = getUpcomingShabbats(4).map(d => {
-      const parasha = getParashaForDate(d);
-      return { date: d, label: parasha ? `שבת ${parasha}` : "שבת", type: "shabbat" as const };
+      return { date: d, label: getShabbatLabel(d), type: "shabbat" as const };
     });
     const holidays = getUpcomingHolidays().map(h => ({ date: h.date, label: h.hebrew, type: "holiday" as const }));
     const all = [...shabbats, ...holidays];
