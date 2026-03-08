@@ -194,36 +194,31 @@
       print-color-adjust: exact;
     }
 
-    /* B&W friendly: available (absent) seats get bold black border + white bg */
-    .print-floor-plan .print-seat.bg-success\/15 {
+    /* Hide seat icons in print for cleaner look */
+    .print-floor-plan .print-seat svg {
+      display: none !important;
+    }
+
+    /* B&W print: Available (absent) seats — bold & prominent */
+    .print-floor-plan .print-seat-available {
       background: #fff !important;
       border: 2.5px solid #000 !important;
       color: #000 !important;
       font-weight: bold !important;
     }
 
-    /* Occupied seats: light gray, thin border */
-    .print-floor-plan .print-seat.bg-destructive\/15 {
-      background: #e8e8e8 !important;
+    /* B&W print: Occupied seats — faded gray */
+    .print-floor-plan .print-seat-occupied {
+      background: #e5e5e5 !important;
       border: 1px solid #aaa !important;
       color: #888 !important;
     }
 
-    /* Unassigned seats: very faint */
-    .print-floor-plan .print-seat.bg-muted\/50 {
+    /* B&W print: Unassigned seats — very faint dashed */
+    .print-floor-plan .print-seat-empty {
       background: #f5f5f5 !important;
       border: 1px dashed #ccc !important;
       color: #bbb !important;
-    }
-
-    /* Hide icons in print for cleaner look */
-    .print-floor-plan .print-seat svg {
-      display: none !important;
-    }
-
-    /* Available seat badge - make it a bold checkmark */
-    .print-floor-plan .print-seat .absolute {
-      display: none !important;
     }
 
     /* Multi-map print */
