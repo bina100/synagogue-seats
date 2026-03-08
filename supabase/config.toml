@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.create-seating-map]
 verify_jwt = false
+
+[functions.update-seating-map]
+verify_jwt = false
