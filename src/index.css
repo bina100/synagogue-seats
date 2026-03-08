@@ -133,7 +133,7 @@
   @media print {
     @page {
       size: A4 landscape;
-      margin: 5mm;
+      margin: 3mm;
     }
 
     header, nav, .no-print, [role="dialog"], .print-floor-plan .border-b {
