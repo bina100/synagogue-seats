@@ -272,61 +272,36 @@ export default function AbsenceManager() {
       </div>
 
       <div className="space-y-4">
-        {/* Shabbat info + personal action */}
+        {/* Row 1: Shabbat + Holidays side by side */}
         <Card className="no-print">
-          <CardContent className="py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-center sm:text-right">
-              <p className="text-sm text-muted-foreground">שבת קרובה</p>
-              <p className="font-semibold text-lg">{formatHebrewDate(shabbatDate)}</p>
-            </div>
-            <div className="flex gap-2">
-              {iAmAbsent ? (
-                <Button
-                  variant="outline"
-                  className="gap-2 border-success text-success"
-                  onClick={() => cancelAbsenceMutation.mutate(myProfileId!)}
-                  disabled={cancelAbsenceMutation.isPending}
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  אני מגיע (בטל היעדרות)
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  className="gap-2 border-destructive text-destructive"
-                  onClick={() => markAbsentMutation.mutate()}
-                  disabled={markAbsentMutation.isPending}
-                >
-                  <CalendarOff className="h-4 w-4" />
-                  לא מגיע לשבת
-                </Button>
+          <CardContent className="py-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Shabbat */}
+              <div className="flex-1 text-center sm:text-right">
+                <p className="text-xs text-muted-foreground">שבת קרובה</p>
+                <p className="font-semibold">{formatHebrewDate(shabbatDate)}</p>
+              </div>
+              {/* Holidays */}
+              {holidays.length > 0 && (
+                <div className="flex-1 text-center sm:text-right">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 justify-center sm:justify-start">
+                    <Star className="h-3 w-3 text-warning" />
+                    חגים קרובים
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-1 justify-center sm:justify-start">
+                    {holidays.map((h, i) => (
+                      <Badge key={i} variant="outline" className="gap-1 text-[10px] bg-warning/10 text-warning border-warning/30">
+                        {h.hebrew} - {formatHebrewDate(h.date)}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Upcoming holidays */}
-        {holidays.length > 0 && (
-          <Card className="no-print">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Star className="h-4 w-4 text-warning" />
-                חגים קרובים
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {holidays.map((h, i) => (
-                  <Badge key={i} variant="outline" className="gap-1 bg-warning/10 text-warning border-warning/30">
-                    {h.hebrew} - {formatHebrewDate(h.date)}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Gabbai controls */}
+        {/* Row 2: Gabbai actions */}
         {isGabbai && (
           <Card className="no-print">
             <CardHeader className="pb-2">
