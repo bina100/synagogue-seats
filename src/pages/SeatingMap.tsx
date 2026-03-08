@@ -473,7 +473,7 @@ export default function SeatingMap() {
       // Renumber regular seats
       let num = 1;
       for (const s of reordered) {
-        if (!s.element_type || s.element_type === "blocked") s.seat_number = num++;
+        if (!(s as any).element_type || (s as any).element_type === "blocked") (s as any).seat_number = num++;
       }
       row.seats = reordered;
       return data;
