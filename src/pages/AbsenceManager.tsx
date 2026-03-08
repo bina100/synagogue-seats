@@ -583,7 +583,7 @@ export default function AbsenceManager() {
                                 return (
                                   <button
                                     key={seat.id}
-                                    className={`print-seat relative flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-lg border-2 text-xs font-medium transition-all ${bgClass} ${borderClass} ${textClass} hover:opacity-80 cursor-pointer`}
+                                    className={`print-seat ${printClass} relative flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-lg border-2 text-xs font-medium transition-all ${bgClass} ${borderClass} ${textClass} hover:opacity-80 cursor-pointer`}
                                     style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as React.CSSProperties}
                                     onClick={() => isAssigned && setSelectedSeat(seat)}
                                     disabled={!isAssigned}
