@@ -43,11 +43,28 @@ export function getUpcomingHolidays(): Array<{ date: string; name: string; hebre
   return events
     .filter((ev) => ev.getFlags() & (flags.CHAG | flags.MAJOR_FAST | flags.YOM_TOV_ENDS))
     .filter((ev) => !(ev.getFlags() & flags.EREV))
-    .map((ev) => ({
-      date: ev.getDate().greg().toISOString().split("T")[0],
-      name: ev.render("he"),
-      hebrew: ev.renderBrief("he"),
-    }));
+    .map((ev) => {
+      const dateStr = ev.getDate().greg().toISOString().split("T")[0];
+      const raw = ev.renderBrief("he");
+      // Format as "יום טוב [א'] חג" e.g. "יום טוב א' פסח"
+      let label = raw;
+      if (ev.getFlags() & flags.CHAG) {
+        // Extract day number if present (e.g. "א" from "סוכות א׳")
+        const dayMatch = raw.match(/([א-ז])['׳]/);
+        // Extract base holiday name (remove day ordinals)
+        const baseName = raw.replace(/\s*[א-ז]['׳]\s*/, ' ').replace(/יום\s+/,'').trim();
+        if (dayMatch) {
+          label = `יום טוב ${dayMatch[1]}' ${baseName}`;
+        } else {
+          label = `יום טוב ${baseName}`;
+        }
+      }
+      return {
+        date: dateStr,
+        name: ev.render("he"),
+        hebrew: label,
+      };
+    });
 }
 
 /** Format a date string to Hebrew + Gregorian display */
