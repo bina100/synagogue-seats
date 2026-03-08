@@ -449,7 +449,7 @@ export default function SeatingMap() {
               <Armchair className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground text-lg">אין מפת מקומות עדיין</p>
               <p className="text-muted-foreground text-sm mt-2">
-                ייבא קובץ אקסל כדי לבנות את מפת המקומות
+                ייבא קובץ אקסל או בנה מפה חדשה
               </p>
             </CardContent>
           </Card>
