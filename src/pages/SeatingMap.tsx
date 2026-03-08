@@ -359,7 +359,8 @@ export default function SeatingMap() {
                     const pageHeight = 190 * 3.78;
                     const zoomX = pageWidth / contentWidth;
                     const zoomY = pageHeight / contentHeight;
-                    const optimalZoom = Math.min(zoomX, zoomY, 1);
+                    // Fit width only for readability — height usually fits in landscape
+                    const optimalZoom = Math.min(zoomX, 1);
                     floorPlan.style.zoom = String(optimalZoom);
                   }
                 }

@@ -160,10 +160,17 @@
     .print-floor-plan {
       position: absolute;
       top: 30px;
-      left: 0;
+      left: 50%;
+      transform: translateX(-50%);
       border: none !important;
       box-shadow: none !important;
       padding: 0 !important;
+      direction: rtl;
+    }
+
+    .print-floor-plan .print-seat {
+      font-size: 7px !important;
+      line-height: 1.2 !important;
     }
 
     .print-floor-plan > div {
