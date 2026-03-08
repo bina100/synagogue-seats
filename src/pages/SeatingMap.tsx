@@ -21,6 +21,7 @@ import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download, Printer, Lay
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SeatCell from "@/components/seating/SeatCell";
 import StructuralElement from "@/components/seating/StructuralElement";
+import NewMapWizard from "@/components/seating/NewMapWizard";
 import { parseSeatingExcel, type ParsedSection } from "@/lib/parseSeatingExcel";
 import { getNextShabbat, getNextEventLabel } from "@/lib/hebrewDates";
 
