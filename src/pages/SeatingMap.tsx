@@ -70,6 +70,15 @@ export default function SeatingMap() {
   const [newRowSeats, setNewRowSeats] = useState(6);
   const [deleteRowConfirm, setDeleteRowConfirm] = useState<{ sectionIdx: number; rowIdx: number } | null>(null);
   const [deleteSectionConfirm, setDeleteSectionConfirm] = useState<number | null>(null);
+  const [aronKodeshSettings, setAronKodeshSettings] = useState(false);
+  const [aronWidth, setAronWidth] = useState(200);
+  const [aronHeight, setAronHeight] = useState(48);
+  const [aronPosition, setAronPosition] = useState<"top" | "bottom">("top");
+
+  // DnD sensors
+  const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 5 } });
+  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } });
+  const sensors = useSensors(pointerSensor, touchSensor);
 
   // ========== Queries ==========
   const { data: synagogue } = useQuery({
