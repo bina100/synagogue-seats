@@ -330,7 +330,7 @@ export default function SeatingMap() {
 
   if (isLoading) {
     return (
-      <AppLayout title={`מפת מקומות - ${synagogue?.name || ""}`} showBack>
+      <AppLayout title={`מפת מקומות - ${synagogue?.name || ""}`} showBack={canManage}>
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground">טוען...</p>
