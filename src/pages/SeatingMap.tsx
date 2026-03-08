@@ -458,6 +458,67 @@ export default function SeatingMap() {
     });
   }, []);
 
+  // Reorder seats within a row via drag & drop
+  const editReorderSeats = useCallback((sectionIdx: number, rowIdx: number, oldIndex: number, newIndex: number) => {
+    setEditData(prev => {
+      if (!prev) return prev;
+      const data = deepClone(prev);
+      const row = data[sectionIdx]?.seat_rows?.[rowIdx];
+      if (!row) return data;
+      // Get all seats including amud
+      const allSeats = row.seats || [];
+      // Filter to only the draggable ones (non-bima, non-aron_kodesh)
+      const draggable = allSeats.filter((s: any) => !s.element_type || s.element_type === "empty" || s.element_type === "blocked" || s.element_type === "amud");
+      const reordered = arrayMove(draggable, oldIndex, newIndex);
+      // Renumber regular seats
+      let num = 1;
+      for (const s of reordered) {
+        if (!s.element_type || s.element_type === "blocked") s.seat_number = num++;
+      }
+      row.seats = reordered;
+      return data;
+    });
+  }, []);
+
+  // Insert amud after a specific seat
+  const editInsertAmud = useCallback((afterSeatId: string) => {
+    setEditData(prev => {
+      if (!prev) return prev;
+      const data = deepClone(prev);
+      for (const sec of data) {
+        for (const row of sec.seat_rows || []) {
+          const idx = (row.seats || []).findIndex((s: any) => s.id === afterSeatId);
+          if (idx >= 0) {
+            const amudId = `new_seat_${newSeatCounter}`;
+            row.seats.splice(idx + 1, 0, {
+              id: amudId,
+              row_id: row.id,
+              seat_number: 0,
+              assigned_to: null,
+              profiles: null,
+              element_type: "amud",
+              created_at: new Date().toISOString(),
+            });
+            setNewSeatCounter(c => c + 1);
+            return data;
+          }
+        }
+      }
+      return data;
+    });
+  }, [newSeatCounter]);
+
+  // Handle drag end for seat reordering
+  const handleDragEnd = useCallback((event: DragEndEvent, sectionIdx: number, rowIdx: number, seats: any[]) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = seats.findIndex((s: any) => s.id === active.id);
+    const newIndex = seats.findIndex((s: any) => s.id === over.id);
+    if (oldIndex >= 0 && newIndex >= 0) {
+      editReorderSeats(sectionIdx, rowIdx, oldIndex, newIndex);
+    }
+  }, [editReorderSeats]);
+
   // ========== Save Changes ==========
   const handleSave = useCallback(async () => {
     if (!editData || !synagogueId) return;
