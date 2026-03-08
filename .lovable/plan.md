@@ -1,31 +1,32 @@
 
 
-## Print CSS Rewrite — Final Plan
+# תיקון RTL בפופאפים + הסרת הרשמה מדף כניסה
 
-The Gemini suggestions are spot-on. Here's the refined plan:
+## 1. תיקון גלובלי ל-RTL בכל הדיאלוגים
 
-### Changes to `src/index.css` — Complete rewrite of `@media print` block
+### הבעיה
+ב-`DialogHeader` של shadcn יש class קבוע: `sm:text-left` שדורס את כיווניות ה-RTL במסכים גדולים. גם אם מוסיפים `dir="rtl"` ו-`text-right` ל-`DialogContent`, הכותרת עדיין נדחפת שמאלה.
 
-**1. Page setup**
-- `@page { size: A4 landscape; margin: 0; }`
-- `.print-floor-plan` forced to `width: 297mm; height: 210mm; overflow: hidden;`
+### הפתרון
+תיקון חד-פעמי בקובץ `src/components/ui/dialog.tsx` - שינוי `sm:text-left` ל-`sm:text-right` ב-`DialogHeader`. זה יתקן את כל הפופאפים במערכת בבת אחת.
 
-**2. CSS Grid for sections — fixed 7 columns, no wrapping**
-- Override the flex container to `display: grid; grid-template-columns: repeat(7, 1fr); gap: 1mm;`
-- Remove `min-w-max`, `flex`, `justify-center` overrides
-- Hide section separators (the `w-px` dividers) — grid gap handles spacing
+**קובץ: `src/components/ui/dialog.tsx` (שורה 55)**
 
-**3. Relative seat sizing — `max-width: 6.5mm`**
-- `.print-seat`: `width: 100%; aspect-ratio: 1; max-width: 6.5mm; font-size: 5px;`
-- Remove all fixed pixel width/height overrides
-- Keep `print-color-adjust: exact`
+| לפני | אחרי |
+|---|---|
+| `text-center sm:text-left` | `text-center sm:text-right` |
 
-**4. Cleanup**
-- Hide nav, header, dialogs, `.no-print`
-- Minimize Bima/Aron Kodesh sizing
-- Seat rows: `display: flex; gap: 0.5mm; justify-content: center;`
-- Print header banner kept with reduced sizing
+בנוסף, נוסיף `dir="rtl" className="text-right"` לכל `DialogContent` שעדיין חסר:
+- `src/pages/SynagogueManage.tsx` - 3 דיאלוגים (שורות 164, 323, 477)
+- `src/pages/Dashboard.tsx` - דיאלוג אחד (שורה 104)
 
-### Single file changed
-- **`src/index.css`** — rewrite the `@media print` block (~80 lines)
+## 2. הסרת הרשמה מדף כניסה
+
+### קובץ: `src/pages/Auth.tsx`
+- הסרת ה-state של `isLogin` ו-`fullName`
+- הסרת ה-branch של signUp מ-handleSubmit
+- הסרת שדה "שם מלא"
+- הסרת כפתור "אין לך חשבון? הירשם כאן"
+- הכותרת המשנית תהיה קבועה: "הכנס לחשבונך"
+- הסרת import של `signUp` מ-useAuth
 

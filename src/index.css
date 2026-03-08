@@ -133,13 +133,48 @@
   @media print {
     @page {
       size: A4 landscape;
-      margin: 3mm;
+      margin: 0;
     }
 
-    header, nav, .no-print, [role="dialog"], .print-floor-plan .border-b {
+    /* Hide UI chrome */
+    header, nav, .no-print, [role="dialog"] {
       display: none !important;
     }
 
+    body {
+      background: white !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Print header banner */
+    .print-header {
+      display: block !important;
+      text-align: center;
+      margin: 0;
+      border-top: 3px solid #c8a951;
+      background: #f5e6a3;
+      padding: 4px 16px;
+      font-size: 14px;
+    }
+
+    /* Main floor plan container — fill A4 landscape */
+    .print-floor-plan {
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      width: 297mm !important;
+      height: 210mm !important;
+      overflow: hidden !important;
+    }
+
+    .print-floor-plan > div {
+      padding: 0 !important;
+    }
+
+    /* Remove overflow constraints */
     .overflow-x-auto, .overflow-auto, .overflow-y-auto {
       overflow: visible !important;
     }
@@ -148,82 +183,53 @@
       min-width: 0 !important;
     }
 
-    body {
-      background: white !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-      font-size: 10px;
-    }
-
-    .print-header {
-      display: block !important;
-      text-align: center;
-      margin-top: 8px;
-      border-top: 3px solid #c8a951;
-      background: #f5e6a3;
-      padding: 6px 16px;
-      font-size: 18px;
-    }
-
-    /* The main floor plan card */
-    .print-floor-plan {
-      border: none !important;
-      box-shadow: none !important;
-      padding: 0 !important;
-      width: 100% !important;
-    }
-
-    .print-floor-plan > div {
-      padding: 0 !important;
-    }
-
-    /* The scrollable container */
-    .print-floor-plan .overflow-x-auto {
-      overflow: visible !important;
-      width: 100% !important;
-    }
-
-    /* The flex container holding all sections */
+    /* ===== CSS Grid for sections — 7 fixed columns ===== */
     .print-floor-plan .flex.gap-1.min-w-max.justify-center {
-      min-width: 0 !important;
+      display: grid !important;
+      grid-template-columns: repeat(7, 1fr) !important;
+      gap: 1mm !important;
       width: 100% !important;
-      gap: 0 !important;
-      justify-content: space-between !important;
+      min-width: 0 !important;
     }
 
-    /* Each section wrapper (section + separator) */
-    .print-floor-plan .flex.gap-1.min-w-max.justify-center > .flex.gap-1 {
-      flex: 1 1 0 !important;
+    /* Hide flex separators between sections (the w-px dividers) */
+    .print-floor-plan .mx-0\.5,
+    .print-floor-plan .w-px {
+      display: none !important;
+    }
+
+    /* Each section + separator wrapper — fill its grid cell */
+    .print-floor-plan .flex.gap-1.min-w-max.justify-center > * {
+      min-width: 0 !important;
       gap: 0 !important;
-      justify-content: center !important;
     }
 
     /* Section column */
     .print-floor-plan .flex.flex-col.items-center.gap-1 {
-      gap: 0 !important;
+      gap: 0.5mm !important;
+      align-items: center !important;
     }
 
     /* Seat rows */
     .print-floor-plan .flex.gap-1.items-center {
-      gap: 1px !important;
+      display: flex !important;
+      gap: 0.5mm !important;
+      justify-content: center !important;
+      flex-wrap: nowrap !important;
     }
 
-    /* Separator */
-    .print-floor-plan .mx-0\.5 {
-      margin: 0 !important;
-      width: 1px !important;
-    }
-
-    /* Seats: shrink to fit */
-    .print-floor-plan .print-seat {
-      width: 32px !important;
-      min-width: 32px !important;
-      height: 32px !important;
-      min-height: 32px !important;
-      font-size: 5.5px !important;
+    /* ===== Seats: relative sizing ===== */
+    .print-seat {
+      width: 100% !important;
+      aspect-ratio: 1 !important;
+      max-width: 6.5mm !important;
+      height: auto !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      font-size: 5px !important;
       line-height: 1.1 !important;
-      padding: 1px !important;
-      border-radius: 3px !important;
+      padding: 0.5px !important;
+      border-radius: 2px !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -231,38 +237,42 @@
     /* Section title */
     .print-floor-plan .text-\[10px\] {
       font-size: 7px !important;
-      margin-bottom: 1px !important;
+      margin-bottom: 0.5mm !important;
     }
 
     /* Aron kodesh & bima */
     .print-floor-plan .rounded-xl.border-2 {
-      padding: 3px 10px !important;
-      font-size: 9px !important;
+      padding: 2px 8px !important;
+      font-size: 8px !important;
     }
 
     /* Bima spacer rows */
     .print-floor-plan .h-10 {
-      height: 24px !important;
+      height: 16px !important;
     }
 
-    /* Bima row padding */
     .print-floor-plan .py-2 {
-      padding-top: 4px !important;
-      padding-bottom: 4px !important;
+      padding-top: 2px !important;
+      padding-bottom: 2px !important;
     }
 
-    /* Aron kodesh margin */
     .print-floor-plan .mb-4 {
-      margin-bottom: 8px !important;
+      margin-bottom: 4px !important;
     }
 
+    /* Hide border-b inside print-floor-plan */
+    .print-floor-plan .border-b {
+      display: none !important;
+    }
+
+    /* ===== Multi-map print layout ===== */
     .print-only {
       display: flex !important;
       flex-direction: row !important;
       flex-wrap: wrap !important;
-      gap: 20px !important;
+      gap: 10px !important;
       justify-content: center !important;
-      width: 100vw !important;
+      width: 297mm !important;
       overflow: visible !important;
     }
 
@@ -270,11 +280,6 @@
       break-inside: avoid !important;
       page-break-inside: avoid !important;
       flex-shrink: 0;
-    }
-
-    .print-only * {
-      break-before: auto !important;
-      break-after: auto !important;
     }
 
     .print-only .print-map-container > div {
@@ -285,15 +290,7 @@
 
     .print-only .print-seat-row {
       flex-wrap: nowrap !important;
-      gap: 1px !important;
-    }
-
-    .print-seat {
-      width: 30px !important;
-      height: 30px !important;
-      font-size: 5px !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+      gap: 0.5mm !important;
     }
 
     .print-only .print-map-container:only-child .print-section-title {
@@ -301,12 +298,10 @@
     }
 
     .print-section-title {
-      page-break-before: auto !important;
-      page-break-after: auto !important;
-      font-size: 10px;
+      font-size: 9px;
       font-weight: bold;
       text-align: center;
-      margin: 2px 0;
+      margin: 1px 0;
       border-bottom: 1px solid #ccc;
       padding-bottom: 1px;
     }
