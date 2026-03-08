@@ -61,7 +61,21 @@ export function formatHebrewDate(dateStr: string): string {
   return `${gregorian} • ${hdate.renderGematriya()}`;
 }
 
-/**
+/** Get parasha name for a given Shabbat date string (YYYY-MM-DD), or null */
+export function getParashaForDate(dateStr: string): string | null {
+  const greg = new Date(dateStr + "T00:00:00");
+  const events = HebrewCalendar.calendar({
+    start: greg,
+    end: greg,
+    il: true,
+    sedrot: true,
+    noHolidays: true,
+  });
+  const parasha = events.find((ev) => ev.getFlags() & flags.PARSHA_HASHAVUA);
+  return parasha ? parasha.render("he") : null;
+}
+
+
  * Get a label for the next upcoming event (Shabbat or holiday).
  * Returns e.g. "שבת פרשת וירא (כ״ב חשוון תשפ״ו)" or "סוכות (ט״ו תשרי תשפ״ו)"
  */
