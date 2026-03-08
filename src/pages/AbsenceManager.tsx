@@ -34,7 +34,7 @@ import {
   Star,
   ChevronsUpDown,
 } from "lucide-react";
-import { getNextShabbat, getUpcomingShabbats, getUpcomingHolidays, formatHebrewDate, getParashaForDate } from "@/lib/hebrewDates";
+import { getNextShabbat, getUpcomingShabbats, getUpcomingHolidays, formatHebrewDate, getParashaForDate, formatHebrewDateOnly } from "@/lib/hebrewDates";
 
 export default function AbsenceManager() {
   const { id: synagogueId } = useParams<{ id: string }>();
@@ -310,7 +310,7 @@ export default function AbsenceManager() {
                   >
                     {d.type === "holiday" && <Star className="h-3 w-3" />}
                     <span className="text-xs">{d.label}</span>
-                    <span className="text-[10px] opacity-70">{formatHebrewDate(d.date)}</span>
+                    <span className="text-[10px] opacity-70">{formatHebrewDateOnly(d.date)}</span>
                   </Button>
                 );
               })}

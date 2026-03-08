@@ -61,6 +61,13 @@ export function formatHebrewDate(dateStr: string): string {
   return `${gregorian} • ${hdate.renderGematriya()}`;
 }
 
+/** Format a date string to Hebrew-only date (gematriya) */
+export function formatHebrewDateOnly(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  const hdate = new HDate(date);
+  return hdate.renderGematriya();
+}
+
 /** Get parasha name for a given Shabbat date string (YYYY-MM-DD), or null */
 export function getParashaForDate(dateStr: string): string | null {
   const greg = new Date(dateStr + "T00:00:00");
