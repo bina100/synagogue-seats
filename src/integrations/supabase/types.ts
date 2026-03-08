@@ -325,6 +325,10 @@ export type Database = {
         Args: { _auth_id: string; _synagogue_id: string }
         Returns: boolean
       }
+      create_seating_map: {
+        Args: { _sections: Json; _synagogue_id: string }
+        Returns: Json
+      }
       get_profile_id: { Args: { _auth_id: string }; Returns: string }
       has_role: {
         Args: {
