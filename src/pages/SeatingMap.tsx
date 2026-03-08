@@ -817,12 +817,24 @@ export default function SeatingMap() {
                 </div>
               )}
 
-              {/* Aron Kodesh at top */}
-              {hasAronKodesh && (
-                <div className="flex justify-center mb-4">
-                  <div className="flex items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10 px-8 py-3 text-sm font-bold text-primary shadow-sm">
+              {/* Aron Kodesh at top or bottom */}
+              {hasAronKodesh && aronPosition === "top" && (
+                <div className="flex justify-center mb-4 items-center gap-2">
+                  <div
+                    className="flex items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10 text-sm font-bold text-primary shadow-sm"
+                    style={{ width: `${aronWidth}px`, height: `${aronHeight}px` }}
+                  >
                     ארון קודש
                   </div>
+                  {editMode && (
+                    <button
+                      className="p-1 rounded hover:bg-muted text-muted-foreground"
+                      onClick={() => setAronKodeshSettings(true)}
+                      title="הגדרות ארון קודש"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               )}
 
