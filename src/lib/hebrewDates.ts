@@ -24,7 +24,7 @@ export function getUpcomingShabbats(weeks = 4): string[] {
   return result;
 }
 
-/** Get upcoming Jewish holidays (next 30 days) */
+/** Get upcoming Jewish holidays including erev chag (next 30 days) */
 export function getUpcomingHolidays(): Array<{ date: string; name: string; hebrew: string }> {
   const now = new Date();
   const end = new Date(now);
@@ -40,13 +40,42 @@ export function getUpcomingHolidays(): Array<{ date: string; name: string; hebre
     noSpecialShabbat: true,
   });
 
-  return events
-    .filter((ev) => ev.getFlags() & (flags.CHAG | flags.MAJOR_FAST | flags.YOM_TOV_ENDS))
+  const holidayEvents = events
+    .filter((ev) => ev.getFlags() & (flags.CHAG | flags.MAJOR_FAST | flags.YOM_TOV_ENDS | flags.EREV))
     .map((ev) => ({
       date: ev.getDate().greg().toISOString().split("T")[0],
       name: ev.render("he"),
       hebrew: ev.renderBrief("he"),
     }));
+
+  // Add erev chag entries for major holidays that don't already have one
+  const result = [...holidayEvents];
+  const existingDates = new Set(result.map(r => r.date));
+  
+  for (const ev of holidayEvents) {
+    if (ev.hebrew.includes("ערב")) continue;
+    const evDate = new Date(ev.date + "T00:00:00");
+    const erevDate = new Date(evDate);
+    erevDate.setDate(erevDate.getDate() - 1);
+    const erevStr = erevDate.toISOString().split("T")[0];
+    if (!existingDates.has(erevStr) && erevDate >= now) {
+      // Extract holiday name for erev label
+      const holidayName = ev.hebrew.replace(/^(יום [א-ת]+ של |שמיני עצרת|שמחת תורה)/, '').trim();
+      const baseName = ev.hebrew.includes("פסח") ? "פסח"
+        : ev.hebrew.includes("סוכות") ? "סוכות"
+        : ev.hebrew.includes("שבועות") ? "שבועות"
+        : ev.hebrew.includes("ראש השנה") ? "ראש השנה"
+        : ev.hebrew;
+      result.push({
+        date: erevStr,
+        name: `ערב ${baseName}`,
+        hebrew: `ערב ${baseName}`,
+      });
+      existingDates.add(erevStr);
+    }
+  }
+
+  return result.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /** Format a date string to Hebrew + Gregorian display */
