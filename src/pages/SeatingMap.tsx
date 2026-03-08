@@ -1010,6 +1010,27 @@ export default function SeatingMap() {
                   ))}
                 </div>
               </div>
+
+              {/* Aron Kodesh at bottom */}
+              {hasAronKodesh && aronPosition === "bottom" && (
+                <div className="flex justify-center mt-4 items-center gap-2">
+                  <div
+                    className="flex items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10 text-sm font-bold text-primary shadow-sm"
+                    style={{ width: `${aronWidth}px`, height: `${aronHeight}px` }}
+                  >
+                    ארון קודש
+                  </div>
+                  {editMode && (
+                    <button
+                      className="p-1 rounded hover:bg-muted text-muted-foreground"
+                      onClick={() => setAronKodeshSettings(true)}
+                      title="הגדרות ארון קודש"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
