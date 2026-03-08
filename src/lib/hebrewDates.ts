@@ -118,10 +118,12 @@ export function getShabbatLabel(dateStr: string): string {
     return desc.includes("חול המועד") || (ev.getFlags() & flags.CHOL_HAMOED);
   });
   if (cholHamoed) {
-    const desc = cholHamoed.render("he");
-    if (desc.includes("פסח")) return 'שבת חוה"מ פסח';
-    if (desc.includes("סוכות")) return 'שבת חוה"מ סוכות';
-    return `שבת חוה"מ`;
+    // Determine which holiday by Hebrew month: Nisan (1) = Pesach, Tishrei (7) = Sukkot
+    const hdate = new HDate(greg);
+    const month = hdate.getMonth();
+    if (month === 1) return 'שבת חוה"מ פסח';
+    if (month === 7) return 'שבת חוה"מ סוכות';
+    return 'שבת חוה"מ';
   }
 
   // Regular parasha
