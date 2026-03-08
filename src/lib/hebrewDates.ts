@@ -76,6 +76,7 @@ export function getParashaForDate(dateStr: string): string | null {
 }
 
 
+/**
  * Get a label for the next upcoming event (Shabbat or holiday).
  * Returns e.g. "שבת פרשת וירא (כ״ב חשוון תשפ״ו)" or "סוכות (ט״ו תשרי תשפ״ו)"
  */
