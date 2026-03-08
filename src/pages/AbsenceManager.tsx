@@ -34,19 +34,37 @@ import {
   Star,
   ChevronsUpDown,
 } from "lucide-react";
-import { getNextShabbat, getUpcomingHolidays, formatHebrewDate } from "@/lib/hebrewDates";
+import { getNextShabbat, getUpcomingShabbats, getUpcomingHolidays, formatHebrewDate } from "@/lib/hebrewDates";
 
 export default function AbsenceManager() {
   const { id: synagogueId } = useParams<{ id: string }>();
   const { isSuperAdmin, profile, roles } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [shabbatDate] = useState(getNextShabbat);
+
+  // Build combined list of upcoming dates (Shabbats + holidays), sorted and deduplicated
+  const upcomingDates = useMemo(() => {
+    const shabbats = getUpcomingShabbats(4).map(d => ({ date: d, label: "שבת", type: "shabbat" as const }));
+    const holidays = getUpcomingHolidays().map(h => ({ date: h.date, label: h.hebrew, type: "holiday" as const }));
+    const all = [...shabbats, ...holidays];
+    // Deduplicate by date (prefer holiday label if same date)
+    const map = new Map<string, typeof all[0]>();
+    for (const item of all) {
+      const existing = map.get(item.date);
+      if (!existing || item.type === "holiday") {
+        map.set(item.date, item);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, []);
+
+  const [selectedDate, setSelectedDate] = useState(() => upcomingDates[0]?.date || getNextShabbat());
+  const shabbatDate = selectedDate;
+
   const [markForOtherOpen, setMarkForOtherOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [selectedSeat, setSelectedSeat] = useState<any>(null);
-  const holidays = useMemo(() => getUpcomingHolidays(), []);
 
   const isGabbai = isSuperAdmin || roles.some((r) => r.role === "gabbai" && r.synagogue_id === synagogueId);
 
