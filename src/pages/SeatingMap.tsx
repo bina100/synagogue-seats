@@ -249,6 +249,7 @@ export default function SeatingMap() {
   }, [allAbsentSeatIds, cancelGabbaiAbsenceMutation, markGabbaiAbsenceMutation]);
   // ========== Excel Import ==========
   const [importOpen, setImportOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedSection[] | null>(null);
   const [importing, setImporting] = useState(false);
   const [createdUsers, setCreatedUsers] = useState<{ fullName: string; username: string; password: string }[]>([]);
