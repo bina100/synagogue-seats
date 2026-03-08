@@ -353,18 +353,17 @@ export default function SeatingMap() {
                 <LayoutGrid className="h-4 w-4" />
                 בנה מפה חדשה
               </Button>
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => {
                 const floorPlan = document.querySelector('.print-floor-plan') as HTMLElement;
                 if (floorPlan) {
                   const scrollContainer = floorPlan.querySelector('.overflow-x-auto') as HTMLElement;
                   if (scrollContainer) {
                     const contentWidth = scrollContainer.scrollWidth;
                     const contentHeight = scrollContainer.scrollHeight;
-                    // A4 landscape printable area (~277mm × 190mm) at 96dpi
                     const pageWidth = 277 * 3.78;
                     const pageHeight = 190 * 3.78;
                     const zoomX = pageWidth / contentWidth;
                     const zoomY = pageHeight / contentHeight;
-                    // Fit width only for readability — height usually fits in landscape
                     const optimalZoom = Math.min(zoomX, 1);
                     floorPlan.style.zoom = String(optimalZoom);
                   }
