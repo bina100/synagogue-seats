@@ -111,6 +111,39 @@ export function getParashaForDate(dateStr: string): string | null {
   return parasha ? parasha.render("he") : null;
 }
 
+/** Get a smart label for a Shabbat: handles chol hamoed, regular parasha, etc. */
+export function getShabbatLabel(dateStr: string): string {
+  const greg = new Date(dateStr + "T00:00:00");
+  
+  // Check if this Shabbat has a chol hamoed or special holiday reading
+  const allEvents = HebrewCalendar.calendar({
+    start: greg,
+    end: greg,
+    il: true,
+    sedrot: true,
+  });
+
+  // Check for chol hamoed
+  const cholHamoed = allEvents.find((ev) => {
+    const desc = ev.render("he");
+    return desc.includes("חול המועד") || (ev.getFlags() & flags.CHOL_HAMOED);
+  });
+  if (cholHamoed) {
+    const desc = cholHamoed.render("he");
+    if (desc.includes("פסח")) return "שבת חול המועד פסח";
+    if (desc.includes("סוכות")) return "שבת חול המועד סוכות";
+    return `שבת ${desc}`;
+  }
+
+  // Regular parasha
+  const parasha = allEvents.find((ev) => ev.getFlags() & flags.PARSHA_HASHAVUA);
+  if (parasha) {
+    return `שבת ${parasha.render("he")}`;
+  }
+
+  return "שבת";
+}
+
 
 /**
  * Get a label for the next upcoming event (Shabbat or holiday).
