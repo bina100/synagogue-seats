@@ -132,15 +132,14 @@
   /* Print styles */
   @media print {
     @page {
-      size: landscape;
-      margin: 10mm;
+      size: A4 landscape;
+      margin: 5mm;
     }
 
     header, nav, .no-print, [role="dialog"], .print-floor-plan .border-b {
       display: none !important;
     }
 
-    /* Override overflow scroll containers in print */
     .overflow-x-auto, .overflow-auto, .overflow-y-auto {
       overflow: visible !important;
     }
@@ -156,28 +155,74 @@
       font-size: 10px;
     }
 
-  .print-header {
-    display: block !important;
-    text-align: center;
-    margin-top: 12px;
-    border-top: 3px solid #c8a951;
-    background: #f5e6a3;
-    padding: 8px 16px;
-    font-size: 20px;
-  }
+    .print-header {
+      display: block !important;
+      text-align: center;
+      margin-top: 8px;
+      border-top: 3px solid #c8a951;
+      background: #f5e6a3;
+      padding: 6px 16px;
+      font-size: 18px;
+    }
 
-  /* The main floor plan card for SeatingMap */
-  .print-floor-plan {
-    border: none !important;
-    box-shadow: none !important;
-    zoom: 0.55;
-  }
+    /* The main floor plan card */
+    .print-floor-plan {
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+    }
 
-  .print-floor-plan .print-seat {
-    width: 38px !important;
-    height: 38px !important;
-    font-size: 6.5px !important;
-  }
+    .print-floor-plan > div {
+      padding: 2px !important;
+    }
+
+    /* Scale sections to fill the page evenly */
+    .print-floor-plan .flex.gap-1.min-w-max {
+      gap: 2px !important;
+      min-width: 0 !important;
+      width: 100% !important;
+      justify-content: space-evenly !important;
+    }
+
+    .print-floor-plan .flex.gap-1 > .flex.gap-1 {
+      flex: 1 1 0 !important;
+      gap: 1px !important;
+    }
+
+    .print-floor-plan .flex.flex-col.items-center.gap-1 {
+      gap: 1px !important;
+      width: 100% !important;
+    }
+
+    .print-floor-plan .flex.gap-1.items-center {
+      gap: 1px !important;
+      justify-content: center !important;
+    }
+
+    .print-floor-plan .mx-0\.5 {
+      margin-left: 1px !important;
+      margin-right: 1px !important;
+    }
+
+    .print-floor-plan .print-seat {
+      width: 30px !important;
+      min-width: 30px !important;
+      height: 30px !important;
+      min-height: 30px !important;
+      font-size: 5px !important;
+      padding: 1px !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .print-floor-plan .text-\[10px\] {
+      font-size: 7px !important;
+    }
+
+    .print-floor-plan .rounded-xl.border-2 {
+      padding: 4px 12px !important;
+      font-size: 10px !important;
+    }
 
     .print-only {
       display: flex !important;
@@ -187,61 +232,51 @@
       justify-content: center !important;
       width: 100vw !important;
       overflow: visible !important;
-      zoom: 0.55;
     }
 
-    /* Each section block must not split */
     .print-only .print-map-container {
       break-inside: avoid !important;
       page-break-inside: avoid !important;
-      break-before: auto !important;
-      break-after: auto !important;
       flex-shrink: 0;
     }
 
-    /* Remove all forced breaks from children */
     .print-only * {
       break-before: auto !important;
       break-after: auto !important;
     }
 
-    /* Card inside print should be borderless and compact */
     .print-only .print-map-container > div {
       border: none !important;
       box-shadow: none !important;
       padding: 0 !important;
     }
 
-    /* Rows must stay horizontal */
     .print-only .print-seat-row {
       flex-wrap: nowrap !important;
-      gap: 2px !important;
+      gap: 1px !important;
     }
 
-    /* Compact seats for print */
     .print-seat {
-      width: 40px !important;
-      height: 40px !important;
-      font-size: 7px !important;
+      width: 30px !important;
+      height: 30px !important;
+      font-size: 5px !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
 
-    /* Hide section title if only one section */
     .print-only .print-map-container:only-child .print-section-title {
       display: none !important;
     }
 
-    /* Section titles should not force page breaks */
     .print-section-title {
       page-break-before: auto !important;
       page-break-after: auto !important;
-      font-size: 12px;
+      font-size: 10px;
       font-weight: bold;
       text-align: center;
-      margin: 4px 0;
+      margin: 2px 0;
       border-bottom: 1px solid #ccc;
-      padding-bottom: 2px;
+      padding-bottom: 1px;
     }
   }
 }
