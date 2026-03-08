@@ -27,10 +27,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download, Printer, LayoutGrid, Pencil, Search, ChevronDown, ChevronUp, X, Save } from "lucide-react";
+import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download, Printer, LayoutGrid, Pencil, Search, ChevronDown, ChevronUp, X, Save, Settings2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import SeatCell from "@/components/seating/SeatCell";
 import SeatEditDialog from "@/components/seating/SeatEditDialog";
+import { DraggableSeat } from "@/components/seating/DraggableSeat";
 import StructuralElement from "@/components/seating/StructuralElement";
 import NewMapWizard from "@/components/seating/NewMapWizard";
 import { parseSeatingExcel, type ParsedSection } from "@/lib/parseSeatingExcel";
