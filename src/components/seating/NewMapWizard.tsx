@@ -48,7 +48,6 @@ export default function NewMapWizard({ open, onOpenChange, synagogueId, hasExist
   ]);
   const [aronPosition, setAronPosition] = useState<"top" | "bottom">("top");
 
-  // Section management
   const addSection = () => {
     setSections((prev) => [
       ...prev,
@@ -65,134 +64,90 @@ export default function NewMapWizard({ open, onOpenChange, synagogueId, hasExist
     setSections((prev) => prev.map((s, i) => (i === idx ? { ...s, ...updates } : s)));
   };
 
-  // Calculate totals
   const totalSeats = sections.reduce((sum, s) => sum + s.rowCount * s.seatsPerRow, 0);
   const totalRows = sections.reduce((sum, s) => sum + s.rowCount, 0);
 
-  // Build preview data
-  const buildPreviewData = () => {
-    return sections.map((sec) => {
-      const rows: { type: "seats" | "bima" | "aron_kodesh"; seatCount?: number; rowNum: number }[] = [];
-      let rowNum = 1;
+  // Build the payload for edge function — structured as sections → rows → seats
+  const buildPayload = () => {
+    return sections.map((sec, si) => {
+      const rows: { row_number: number; seats_count: number; seats: { seat_number: number; element_type?: string }[] }[] = [];
+      let rowNumber = 1;
+
+      // Aron kodesh at top of first section
+      if (aronPosition === "top" && si === 0) {
+        rows.push({
+          row_number: rowNumber++,
+          seats_count: 1,
+          seats: [{ seat_number: 1, element_type: "aron_kodesh" }],
+        });
+      }
 
       for (let r = 1; r <= sec.rowCount; r++) {
-        rows.push({ type: "seats", seatCount: sec.seatsPerRow, rowNum: rowNum++ });
+        // Seat row
+        rows.push({
+          row_number: rowNumber++,
+          seats_count: sec.seatsPerRow,
+          seats: Array.from({ length: sec.seatsPerRow }, (_, i) => ({
+            seat_number: i + 1,
+          })),
+        });
+
+        // Bima row after specified row
         if (sec.hasBima && r === sec.bimaAfterRow) {
-          rows.push({ type: "bima", rowNum: rowNum++ });
+          rows.push({
+            row_number: rowNumber++,
+            seats_count: 1,
+            seats: [{ seat_number: 1, element_type: "bima" }],
+          });
         }
       }
+
+      // Aron kodesh at bottom of last section
+      if (aronPosition === "bottom" && si === sections.length - 1) {
+        rows.push({
+          row_number: rowNumber++,
+          seats_count: 1,
+          seats: [{ seat_number: 1, element_type: "aron_kodesh" }],
+        });
+      }
+
       return { name: sec.name, rows };
     });
   };
 
-  // Save to DB
+  // Build preview data (visual only)
+  const buildPreviewData = () => {
+    return sections.map((sec) => {
+      const rows: { type: "seats" | "bima"; seatCount?: number }[] = [];
+      for (let r = 1; r <= sec.rowCount; r++) {
+        rows.push({ type: "seats", seatCount: sec.seatsPerRow });
+        if (sec.hasBima && r === sec.bimaAfterRow) {
+          rows.push({ type: "bima" });
+        }
+      }
+      return { name: sec.name, rows, hasBima: sec.hasBima };
+    });
+  };
+
+  // Save via edge function (atomic transaction)
   const handleCreate = async () => {
     setSaving(true);
     try {
-      // Delete existing map if any
-      const { data: oldSections } = await supabase
-        .from("sections")
-        .select("id")
-        .eq("synagogue_id", synagogueId);
+      const payload = buildPayload();
+      const { data, error } = await supabase.functions.invoke("create-seating-map", {
+        body: { synagogue_id: synagogueId, sections: payload },
+      });
 
-      if (oldSections && oldSections.length > 0) {
-        const oldSectionIds = oldSections.map((s) => s.id);
-        const { data: oldRows } = await supabase
-          .from("seat_rows")
-          .select("id")
-          .in("section_id", oldSectionIds);
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-        if (oldRows && oldRows.length > 0) {
-          const oldRowIds = oldRows.map((r) => r.id);
-          await supabase.from("seats").delete().in("row_id", oldRowIds);
-          await supabase.from("seat_rows").delete().in("section_id", oldSectionIds);
-        }
-        await supabase.from("sections").delete().eq("synagogue_id", synagogueId);
-      }
-
-      // Create sections
-      for (let si = 0; si < sections.length; si++) {
-        const sec = sections[si];
-
-        const { data: newSection, error: secErr } = await supabase
-          .from("sections")
-          .insert({ synagogue_id: synagogueId, name: sec.name, sort_order: si })
-          .select()
-          .single();
-        if (secErr) throw secErr;
-
-        let rowNumber = 1;
-
-        // Aron kodesh at top of first section
-        if (aronPosition === "top" && si === 0) {
-          const { data: aronRow, error: aronRowErr } = await supabase
-            .from("seat_rows")
-            .insert({ section_id: newSection.id, row_number: rowNumber, seats_count: 1 })
-            .select()
-            .single();
-          if (aronRowErr) throw aronRowErr;
-          await supabase.from("seats").insert({
-            row_id: aronRow.id,
-            seat_number: 1,
-            element_type: "aron_kodesh",
-          });
-          rowNumber++;
-        }
-
-        // Create rows with bima
-        for (let r = 1; r <= sec.rowCount; r++) {
-          // Seat row
-          const { data: newRow, error: rowErr } = await supabase
-            .from("seat_rows")
-            .insert({ section_id: newSection.id, row_number: rowNumber, seats_count: sec.seatsPerRow })
-            .select()
-            .single();
-          if (rowErr) throw rowErr;
-
-          const seatsToInsert = Array.from({ length: sec.seatsPerRow }, (_, i) => ({
-            row_id: newRow.id,
-            seat_number: i + 1,
-          }));
-          const { error: seatsErr } = await supabase.from("seats").insert(seatsToInsert);
-          if (seatsErr) throw seatsErr;
-          rowNumber++;
-
-          // Bima row after specified row
-          if (sec.hasBima && r === sec.bimaAfterRow) {
-            const { data: bimaRow, error: bimaRowErr } = await supabase
-              .from("seat_rows")
-              .insert({ section_id: newSection.id, row_number: rowNumber, seats_count: 1 })
-              .select()
-              .single();
-            if (bimaRowErr) throw bimaRowErr;
-            await supabase.from("seats").insert({
-              row_id: bimaRow.id,
-              seat_number: 1,
-              element_type: "bima",
-            });
-            rowNumber++;
-          }
-        }
-
-        // Aron kodesh at bottom of last section
-        if (aronPosition === "bottom" && si === sections.length - 1) {
-          const { data: aronRow, error: aronRowErr } = await supabase
-            .from("seat_rows")
-            .insert({ section_id: newSection.id, row_number: rowNumber, seats_count: 1 })
-            .select()
-            .single();
-          if (aronRowErr) throw aronRowErr;
-          await supabase.from("seats").insert({
-            row_id: aronRow.id,
-            seat_number: 1,
-            element_type: "aron_kodesh",
-          });
-        }
-      }
-
+      const stats = data.stats;
       queryClient.invalidateQueries({ queryKey: ["full_seating_map", synagogueId] });
       queryClient.invalidateQueries({ queryKey: ["sections", synagogueId] });
-      toast({ title: "המפה נוצרה בהצלחה!", description: `${sections.length} מחלקות, ${totalSeats} מקומות` });
+      toast({
+        title: "המפה נוצרה בהצלחה!",
+        description: `${stats.sections} מחלקות, ${stats.rows} שורות, ${stats.seats} מקומות`,
+      });
       onOpenChange(false);
       resetState();
     } catch (err: any) {
@@ -405,16 +360,13 @@ export default function NewMapWizard({ open, onOpenChange, synagogueId, hasExist
                         <div className="text-[10px] font-bold text-muted-foreground mb-1">{sec.name}</div>
                         {sec.rows.map((row, rIdx) => {
                           if (row.type === "bima") {
-                            if (sIdx === Math.floor(previewData.length / 2)) {
-                              return (
-                                <div key={rIdx} className="flex items-center justify-center py-1">
-                                  <div className="rounded-lg border-2 border-accent-foreground/20 bg-accent px-4 py-1 text-[10px] font-bold text-accent-foreground">
-                                    בימה
-                                  </div>
+                            return (
+                              <div key={rIdx} className="flex items-center justify-center py-1">
+                                <div className="rounded-lg border-2 border-accent-foreground/20 bg-accent px-4 py-1 text-[10px] font-bold text-accent-foreground">
+                                  בימה
                                 </div>
-                              );
-                            }
-                            return <div key={rIdx} className="h-8" />;
+                              </div>
+                            );
                           }
                           return (
                             <div key={rIdx} className="flex gap-0.5">
