@@ -27,10 +27,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download, Printer, LayoutGrid, Pencil, Search, ChevronDown, ChevronUp, X, Save } from "lucide-react";
+import { Plus, Trash2, Armchair, Upload, FileSpreadsheet, Download, Printer, LayoutGrid, Pencil, Search, ChevronDown, ChevronUp, X, Save, Settings2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import SeatCell from "@/components/seating/SeatCell";
 import SeatEditDialog from "@/components/seating/SeatEditDialog";
+import { DraggableSeat } from "@/components/seating/DraggableSeat";
 import StructuralElement from "@/components/seating/StructuralElement";
 import NewMapWizard from "@/components/seating/NewMapWizard";
 import { parseSeatingExcel, type ParsedSection } from "@/lib/parseSeatingExcel";
@@ -67,6 +70,15 @@ export default function SeatingMap() {
   const [newRowSeats, setNewRowSeats] = useState(6);
   const [deleteRowConfirm, setDeleteRowConfirm] = useState<{ sectionIdx: number; rowIdx: number } | null>(null);
   const [deleteSectionConfirm, setDeleteSectionConfirm] = useState<number | null>(null);
+  const [aronKodeshSettings, setAronKodeshSettings] = useState(false);
+  const [aronWidth, setAronWidth] = useState(200);
+  const [aronHeight, setAronHeight] = useState(48);
+  const [aronPosition, setAronPosition] = useState<"top" | "bottom">("top");
+
+  // DnD sensors
+  const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 5 } });
+  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } });
+  const sensors = useSensors(pointerSensor, touchSensor);
 
   // ========== Queries ==========
   const { data: synagogue } = useQuery({
@@ -446,6 +458,67 @@ export default function SeatingMap() {
     });
   }, []);
 
+  // Reorder seats within a row via drag & drop
+  const editReorderSeats = useCallback((sectionIdx: number, rowIdx: number, oldIndex: number, newIndex: number) => {
+    setEditData(prev => {
+      if (!prev) return prev;
+      const data = deepClone(prev);
+      const row = data[sectionIdx]?.seat_rows?.[rowIdx];
+      if (!row) return data;
+      // Get all seats including amud
+      const allSeats = row.seats || [];
+      // Filter to only the draggable ones (non-bima, non-aron_kodesh)
+      const draggable = allSeats.filter((s: any) => !s.element_type || s.element_type === "empty" || s.element_type === "blocked" || s.element_type === "amud");
+      const reordered = arrayMove(draggable, oldIndex, newIndex);
+      // Renumber regular seats
+      let num = 1;
+      for (const s of reordered) {
+        if (!(s as any).element_type || (s as any).element_type === "blocked") (s as any).seat_number = num++;
+      }
+      row.seats = reordered;
+      return data;
+    });
+  }, []);
+
+  // Insert amud after a specific seat
+  const editInsertAmud = useCallback((afterSeatId: string) => {
+    setEditData(prev => {
+      if (!prev) return prev;
+      const data = deepClone(prev);
+      for (const sec of data) {
+        for (const row of sec.seat_rows || []) {
+          const idx = (row.seats || []).findIndex((s: any) => s.id === afterSeatId);
+          if (idx >= 0) {
+            const amudId = `new_seat_${newSeatCounter}`;
+            row.seats.splice(idx + 1, 0, {
+              id: amudId,
+              row_id: row.id,
+              seat_number: 0,
+              assigned_to: null,
+              profiles: null,
+              element_type: "amud",
+              created_at: new Date().toISOString(),
+            });
+            setNewSeatCounter(c => c + 1);
+            return data;
+          }
+        }
+      }
+      return data;
+    });
+  }, [newSeatCounter]);
+
+  // Handle drag end for seat reordering
+  const handleDragEnd = useCallback((event: DragEndEvent, sectionIdx: number, rowIdx: number, seats: any[]) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = seats.findIndex((s: any) => s.id === active.id);
+    const newIndex = seats.findIndex((s: any) => s.id === over.id);
+    if (oldIndex >= 0 && newIndex >= 0) {
+      editReorderSeats(sectionIdx, rowIdx, oldIndex, newIndex);
+    }
+  }, [editReorderSeats]);
+
   // ========== Save Changes ==========
   const handleSave = useCallback(async () => {
     if (!editData || !synagogueId) return;
@@ -744,12 +817,24 @@ export default function SeatingMap() {
                 </div>
               )}
 
-              {/* Aron Kodesh at top */}
-              {hasAronKodesh && (
-                <div className="flex justify-center mb-4">
-                  <div className="flex items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10 px-8 py-3 text-sm font-bold text-primary shadow-sm">
+              {/* Aron Kodesh at top or bottom */}
+              {hasAronKodesh && aronPosition === "top" && (
+                <div className="flex justify-center mb-4 items-center gap-2">
+                  <div
+                    className="flex items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10 text-sm font-bold text-primary shadow-sm"
+                    style={{ width: `${aronWidth}px`, height: `${aronHeight}px` }}
+                  >
                     ארון קודש
                   </div>
+                  {editMode && (
+                    <button
+                      className="p-1 rounded hover:bg-muted text-muted-foreground"
+                      onClick={() => setAronKodeshSettings(true)}
+                      title="הגדרות ארון קודש"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -818,8 +903,8 @@ export default function SeatingMap() {
                           }
                           if (isBimaRow) return <div key={row.id} className="h-10" />;
 
-                          const regularSeats = (row.seats || []).filter(
-                            (s: any) => !s.element_type || s.element_type === "empty" || s.element_type === "blocked"
+                          const draggableSeats = (row.seats || []).filter(
+                            (s: any) => !s.element_type || s.element_type === "empty" || s.element_type === "blocked" || s.element_type === "amud"
                           );
 
                           return (
@@ -841,55 +926,53 @@ export default function SeatingMap() {
                                 </button>
                               )}
 
-                              {regularSeats.map((seat: any) => (
-                                editMode ? (
-                                  <button
-                                    key={seat.id}
-                                    className={`
-                                      relative flex flex-col items-center justify-center
-                                      w-14 h-14 sm:w-16 sm:h-16 rounded-md border text-xs font-medium transition-all cursor-pointer
-                                      ${seat.element_type === "blocked"
-                                        ? "bg-orange-100 border-orange-400 text-orange-700 border-dashed"
-                                        : seat.assigned_to
-                                          ? "bg-primary/15 border-primary/40 text-primary hover:bg-primary/25"
-                                          : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
-                                      }
-                                    `}
-                                    onClick={() => setEditSeat(seat)}
-                                    title={`ערוך מקום ${seat.seat_number}`}
+                              {editMode ? (
+                                <DndContext
+                                  sensors={sensors}
+                                  collisionDetection={closestCenter}
+                                  onDragEnd={(e) => handleDragEnd(e, sIdx, rowIdx, draggableSeats)}
+                                >
+                                  <SortableContext
+                                    items={draggableSeats.map((s: any) => s.id)}
+                                    strategy={horizontalListSortingStrategy}
                                   >
-                                    {seat.element_type === "blocked" ? (
-                                      <>
-                                        <Armchair className="h-3.5 w-3.5 mb-0.5 opacity-40" />
-                                        <span className="text-[7px]">חסום</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Armchair className="h-3.5 w-3.5 mb-0.5" />
-                                        <span className="text-[8px] leading-tight text-center whitespace-normal break-words max-w-[44px]">
-                                          {seat.assigned_to ? (seat.profiles?.full_name || "תפוס") : seat.seat_number}
-                                        </span>
-                                      </>
-                                    )}
-                                    <Pencil className="absolute top-0.5 left-0.5 h-2.5 w-2.5 text-muted-foreground/50" />
-                                  </button>
-                                ) : (
-                                  <SeatCell
-                                    key={seat.id}
-                                    seat={seat}
-                                    members={members || []}
-                                    canManage={canManage}
-                                    onAssign={handleAssign}
-                                    currentUserProfileId={profile?.id}
-                                    isAbsent={seat.assigned_to === profile?.id ? absentSeatIds.has(seat.id) : undefined}
-                                    onToggleAbsence={seat.assigned_to === profile?.id ? () => handleToggleAbsence(seat.id) : undefined}
-                                    isAbsentForGabbai={canManage && seat.assigned_to ? allAbsentSeatIds.has(seat.id) : undefined}
-                                    onToggleGabbaiAbsence={canManage && seat.assigned_to ? () => handleToggleGabbaiAbsence(seat.id, seat.assigned_to) : undefined}
-                                    myRef={seat.assigned_to === profile?.id ? userSeatCallbackRef : undefined}
-                                    shabbatLabel={shabbatLabel}
-                                  />
-                                )
-                              ))}
+                                    <div className="flex gap-1 items-center">
+                                      {draggableSeats.map((seat: any) => (
+                                        <DraggableSeat
+                                          key={seat.id}
+                                          seat={seat}
+                                          onClickSeat={setEditSeat}
+                                          onInsertAmud={editInsertAmud}
+                                          editMode={true}
+                                        />
+                                      ))}
+                                    </div>
+                                  </SortableContext>
+                                </DndContext>
+                              ) : (
+                                draggableSeats.map((seat: any) => (
+                                  seat.element_type === "amud" ? (
+                                    <div key={seat.id} className="flex items-center justify-center">
+                                      <div className="h-6 w-6 rounded-full border-2 border-muted-foreground/30 bg-muted" title="עמוד" />
+                                    </div>
+                                  ) : (
+                                    <SeatCell
+                                      key={seat.id}
+                                      seat={seat}
+                                      members={members || []}
+                                      canManage={canManage}
+                                      onAssign={handleAssign}
+                                      currentUserProfileId={profile?.id}
+                                      isAbsent={seat.assigned_to === profile?.id ? absentSeatIds.has(seat.id) : undefined}
+                                      onToggleAbsence={seat.assigned_to === profile?.id ? () => handleToggleAbsence(seat.id) : undefined}
+                                      isAbsentForGabbai={canManage && seat.assigned_to ? allAbsentSeatIds.has(seat.id) : undefined}
+                                      onToggleGabbaiAbsence={canManage && seat.assigned_to ? () => handleToggleGabbaiAbsence(seat.id, seat.assigned_to) : undefined}
+                                      myRef={seat.assigned_to === profile?.id ? userSeatCallbackRef : undefined}
+                                      shabbatLabel={shabbatLabel}
+                                    />
+                                  )
+                                ))
+                              )}
 
                               {/* Add seat button */}
                               {editMode && (
@@ -927,6 +1010,27 @@ export default function SeatingMap() {
                   ))}
                 </div>
               </div>
+
+              {/* Aron Kodesh at bottom */}
+              {hasAronKodesh && aronPosition === "bottom" && (
+                <div className="flex justify-center mt-4 items-center gap-2">
+                  <div
+                    className="flex items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10 text-sm font-bold text-primary shadow-sm"
+                    style={{ width: `${aronWidth}px`, height: `${aronHeight}px` }}
+                  >
+                    ארון קודש
+                  </div>
+                  {editMode && (
+                    <button
+                      className="p-1 rounded hover:bg-muted text-muted-foreground"
+                      onClick={() => setAronKodeshSettings(true)}
+                      title="הגדרות ארון קודש"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -978,7 +1082,44 @@ export default function SeatingMap() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Row Confirm (double confirm for assigned) */}
+      {/* Aron Kodesh Settings */}
+      <Dialog open={aronKodeshSettings} onOpenChange={setAronKodeshSettings}>
+        <DialogContent dir="rtl" className="text-right max-w-xs">
+          <DialogHeader><DialogTitle>הגדרות ארון קודש</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>רוחב (פיקסלים)</Label>
+              <Input type="number" min={80} max={600} value={aronWidth} onChange={e => setAronWidth(Number(e.target.value))} />
+            </div>
+            <div className="space-y-2">
+              <Label>גובה (פיקסלים)</Label>
+              <Input type="number" min={30} max={200} value={aronHeight} onChange={e => setAronHeight(Number(e.target.value))} />
+            </div>
+            <div className="space-y-2">
+              <Label>מיקום</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant={aronPosition === "top" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setAronPosition("top")}
+                >
+                  למעלה
+                </Button>
+                <Button
+                  variant={aronPosition === "bottom" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setAronPosition("bottom")}
+                >
+                  למטה
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!deleteRowConfirm} onOpenChange={(o) => { if (!o) setDeleteRowConfirm(null); }}>
         <AlertDialogContent dir="rtl" className="text-right">
           <AlertDialogHeader>
