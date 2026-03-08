@@ -341,7 +341,7 @@ export default function SeatingMap() {
   }
 
   return (
-    <AppLayout title={`מפת מקומות - ${synagogue?.name || ""}`} showBack>
+    <AppLayout title={`מפת מקומות - ${synagogue?.name || ""}`} showBack={canManage}>
       <div className="space-y-4">
         {/* Actions bar */}
         {canManage && (
