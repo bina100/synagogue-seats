@@ -34,19 +34,37 @@ import {
   Star,
   ChevronsUpDown,
 } from "lucide-react";
-import { getNextShabbat, getUpcomingHolidays, formatHebrewDate } from "@/lib/hebrewDates";
+import { getNextShabbat, getUpcomingShabbats, getUpcomingHolidays, formatHebrewDate } from "@/lib/hebrewDates";
 
 export default function AbsenceManager() {
   const { id: synagogueId } = useParams<{ id: string }>();
   const { isSuperAdmin, profile, roles } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [shabbatDate] = useState(getNextShabbat);
+
+  // Build combined list of upcoming dates (Shabbats + holidays), sorted and deduplicated
+  const upcomingDates = useMemo(() => {
+    const shabbats = getUpcomingShabbats(4).map(d => ({ date: d, label: "שבת", type: "shabbat" as const }));
+    const holidays = getUpcomingHolidays().map(h => ({ date: h.date, label: h.hebrew, type: "holiday" as const }));
+    const all = [...shabbats, ...holidays];
+    // Deduplicate by date (prefer holiday label if same date)
+    const map = new Map<string, typeof all[0]>();
+    for (const item of all) {
+      const existing = map.get(item.date);
+      if (!existing || item.type === "holiday") {
+        map.set(item.date, item);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, []);
+
+  const [selectedDate, setSelectedDate] = useState(() => upcomingDates[0]?.date || getNextShabbat());
+  const shabbatDate = selectedDate;
+
   const [markForOtherOpen, setMarkForOtherOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [selectedSeat, setSelectedSeat] = useState<any>(null);
-  const holidays = useMemo(() => getUpcomingHolidays(), []);
 
   const isGabbai = isSuperAdmin || roles.some((r) => r.role === "gabbai" && r.synagogue_id === synagogueId);
 
@@ -272,31 +290,27 @@ export default function AbsenceManager() {
       </div>
 
       <div className="space-y-4">
-        {/* Row 1: Shabbat + Holidays side by side */}
+        {/* Row 1: Date selector */}
         <Card className="no-print">
           <CardContent className="py-4">
-            <div className="flex flex-col sm:flex-row gap-3">
-              {/* Shabbat */}
-              <div className="flex-1 text-center sm:text-right">
-                <p className="text-xs text-muted-foreground">שבת קרובה</p>
-                <p className="font-semibold">{formatHebrewDate(shabbatDate)}</p>
-              </div>
-              {/* Holidays */}
-              {holidays.length > 0 && (
-                <div className="flex-1 text-center sm:text-right">
-                  <p className="text-xs text-muted-foreground flex items-center gap-1 justify-center sm:justify-start">
-                    <Star className="h-3 w-3 text-warning" />
-                    חגים קרובים
-                  </p>
-                  <div className="flex flex-wrap gap-1 mt-1 justify-center sm:justify-start">
-                    {holidays.map((h, i) => (
-                      <Badge key={i} variant="outline" className="gap-1 text-[10px] bg-warning/10 text-warning border-warning/30">
-                        {h.hebrew} - {formatHebrewDate(h.date)}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <p className="text-xs text-muted-foreground mb-2">בחר מועד לסימון היעדרות:</p>
+            <div className="flex flex-wrap gap-2">
+              {upcomingDates.map((d) => {
+                const isSelected = d.date === selectedDate;
+                return (
+                  <Button
+                    key={d.date}
+                    variant={isSelected ? "default" : "outline"}
+                    size="sm"
+                    className={`gap-1.5 ${d.type === "holiday" && !isSelected ? "border-warning/50 text-warning" : ""}`}
+                    onClick={() => setSelectedDate(d.date)}
+                  >
+                    {d.type === "holiday" && <Star className="h-3 w-3" />}
+                    <span className="text-xs">{d.label}</span>
+                    <span className="text-[10px] opacity-70">{formatHebrewDate(d.date)}</span>
+                  </Button>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
