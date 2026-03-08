@@ -19,7 +19,7 @@ import {
 import { Building2, Plus, MapPin, Users, Trash2 } from "lucide-react";
 
 export default function Dashboard() {
-  const { profile, isSuperAdmin, roles } = useAuth();
+  const { profile, isSuperAdmin, roles, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
