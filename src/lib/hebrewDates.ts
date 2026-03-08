@@ -10,6 +10,20 @@ export function getNextShabbat(): string {
   return shabbat.toISOString().split("T")[0];
 }
 
+/** Get upcoming Shabbats for the next N weeks */
+export function getUpcomingShabbats(weeks = 4): string[] {
+  const result: string[] = [];
+  const now = new Date();
+  const day = now.getDay();
+  const daysUntilFirst = day === 6 ? 0 : (6 - day + 7) % 7 || 7;
+  for (let i = 0; i < weeks; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() + daysUntilFirst + i * 7);
+    result.push(d.toISOString().split("T")[0]);
+  }
+  return result;
+}
+
 /** Get upcoming Jewish holidays (next 30 days) */
 export function getUpcomingHolidays(): Array<{ date: string; name: string; hebrew: string }> {
   const now = new Date();
