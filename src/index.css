@@ -194,6 +194,33 @@
       print-color-adjust: exact;
     }
 
+    /* Hide seat icons in print for cleaner look */
+    .print-floor-plan .print-seat svg {
+      display: none !important;
+    }
+
+    /* B&W print: Available (absent) seats — bold & prominent */
+    .print-floor-plan .print-seat-available {
+      background: #fff !important;
+      border: 2.5px solid #000 !important;
+      color: #000 !important;
+      font-weight: bold !important;
+    }
+
+    /* B&W print: Occupied seats — faded gray */
+    .print-floor-plan .print-seat-occupied {
+      background: #e5e5e5 !important;
+      border: 1px solid #aaa !important;
+      color: #888 !important;
+    }
+
+    /* B&W print: Unassigned seats — very faint dashed */
+    .print-floor-plan .print-seat-empty {
+      background: #f5f5f5 !important;
+      border: 1px dashed #ccc !important;
+      color: #bbb !important;
+    }
+
     /* Multi-map print */
     .print-only {
       display: flex !important;

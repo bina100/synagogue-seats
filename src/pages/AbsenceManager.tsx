@@ -556,28 +556,34 @@ export default function AbsenceManager() {
                                 let borderClass: string;
                                 let textClass: string;
 
+                                let printClass: string;
+
                                 if (isCurrentUser) {
                                   bgClass = "bg-teal-100";
                                   borderClass = "border-teal-500";
                                   textClass = "text-teal-900 font-bold";
+                                  printClass = "print-seat-occupied";
                                 } else if (!isAssigned) {
                                   bgClass = "bg-muted/50";
                                   borderClass = "border-border";
                                   textClass = "text-muted-foreground";
+                                  printClass = "print-seat-empty";
                                 } else if (isSeatAbsent) {
                                   bgClass = "bg-success/15";
                                   borderClass = "border-success/40";
                                   textClass = "text-success";
+                                  printClass = "print-seat-available";
                                 } else {
                                   bgClass = "bg-destructive/15";
                                   borderClass = "border-destructive/40";
                                   textClass = "text-destructive";
+                                  printClass = "print-seat-occupied";
                                 }
 
                                 return (
                                   <button
                                     key={seat.id}
-                                    className={`print-seat relative flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-lg border-2 text-xs font-medium transition-all ${bgClass} ${borderClass} ${textClass} hover:opacity-80 cursor-pointer`}
+                                    className={`print-seat ${printClass} relative flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-lg border-2 text-xs font-medium transition-all ${bgClass} ${borderClass} ${textClass} hover:opacity-80 cursor-pointer`}
                                     style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as React.CSSProperties}
                                     onClick={() => isAssigned && setSelectedSeat(seat)}
                                     disabled={!isAssigned}
