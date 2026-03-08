@@ -19,7 +19,7 @@ import {
 import { Building2, Plus, MapPin, Users, Trash2 } from "lucide-react";
 
 export default function Dashboard() {
-  const { profile, isSuperAdmin, roles } = useAuth();
+  const { profile, isSuperAdmin, roles, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -43,11 +43,11 @@ export default function Dashboard() {
   // Auto-redirect regular members to their seating map
   const isRegularMember = !isSuperAdmin && !roles.some((r) => r.role === "gabbai");
   useEffect(() => {
-    if (isLoading || !synagogues || !profile) return;
+    if (authLoading || isLoading || !synagogues || !profile) return;
     if (isRegularMember && synagogues.length > 0) {
       navigate(`/synagogue/${synagogues[0].id}/seating`, { replace: true });
     }
-  }, [isLoading, synagogues, isRegularMember, navigate, profile]);
+  }, [authLoading, isLoading, synagogues, isRegularMember, navigate, profile]);
 
   // Create synagogue
   const createMutation = useMutation({
