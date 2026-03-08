@@ -2,3 +2,6 @@ project_id = "ywtdvuaxvpqrhoazpqwx"
 
 [functions.import-seating-map]
 verify_jwt = false
+
+[functions.create-seating-map]
+verify_jwt = false
