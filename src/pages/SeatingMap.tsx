@@ -348,8 +348,11 @@ export default function SeatingMap() {
         {/* Actions bar */}
         {canManage && (
           <div className="space-y-2 no-print">
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => {
+            <div className="flex gap-2 justify-end flex-wrap">
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setWizardOpen(true)}>
+                <LayoutGrid className="h-4 w-4" />
+                בנה מפה חדשה
+              </Button>
                 const floorPlan = document.querySelector('.print-floor-plan') as HTMLElement;
                 if (floorPlan) {
                   const scrollContainer = floorPlan.querySelector('.overflow-x-auto') as HTMLElement;
