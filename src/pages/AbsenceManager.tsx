@@ -34,7 +34,7 @@ import {
   Star,
   ChevronsUpDown,
 } from "lucide-react";
-import { getNextShabbat, getUpcomingShabbats, getUpcomingHolidays, formatHebrewDate } from "@/lib/hebrewDates";
+import { getNextShabbat, getUpcomingShabbats, getUpcomingHolidays, formatHebrewDate, getParashaForDate } from "@/lib/hebrewDates";
 
 export default function AbsenceManager() {
   const { id: synagogueId } = useParams<{ id: string }>();
@@ -44,7 +44,10 @@ export default function AbsenceManager() {
 
   // Build combined list of upcoming dates (Shabbats + holidays), sorted and deduplicated
   const upcomingDates = useMemo(() => {
-    const shabbats = getUpcomingShabbats(4).map(d => ({ date: d, label: "שבת", type: "shabbat" as const }));
+    const shabbats = getUpcomingShabbats(4).map(d => {
+      const parasha = getParashaForDate(d);
+      return { date: d, label: parasha ? `שבת ${parasha}` : "שבת", type: "shabbat" as const };
+    });
     const holidays = getUpcomingHolidays().map(h => ({ date: h.date, label: h.hebrew, type: "holiday" as const }));
     const all = [...shabbats, ...holidays];
     // Deduplicate by date (prefer holiday label if same date)
