@@ -950,7 +950,7 @@ export default function SeatingMap() {
                                   </SortableContext>
                                 </DndContext>
                               ) : (
-                                draggableSeats.filter((s: any) => s.element_type !== "amud").map((seat: any) => (
+                                draggableSeats.map((seat: any) => (
                                   seat.element_type === "amud" ? (
                                     <div key={seat.id} className="flex items-center justify-center">
                                       <div className="h-6 w-6 rounded-full border-2 border-muted-foreground/30 bg-muted" title="עמוד" />
