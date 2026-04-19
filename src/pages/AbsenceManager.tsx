@@ -221,9 +221,69 @@ export default function AbsenceManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
-      setMarkForOtherOpen(false);
-      setSelectedMemberId("");
       toast({ title: "היעדרות סומנה בהצלחה" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    },
+  });
+
+  // Gabbai: bulk mark multiple members absent
+  const markMultipleAbsentMutation = useMutation({
+    mutationFn: async (profileIds: string[]) => {
+      const { data: seatRows } = await supabase
+        .from("seat_rows")
+        .select("id, sections!inner(synagogue_id)")
+        .eq("sections.synagogue_id", synagogueId!);
+
+      const rowIds = seatRows?.map((r: any) => r.id) || [];
+
+      const { data: seats } = await supabase
+        .from("seats")
+        .select("id, assigned_to")
+        .in("row_id", rowIds)
+        .in("assigned_to", profileIds);
+
+      const seatsByProfile = new Map<string, string[]>();
+      (seats || []).forEach((s: any) => {
+        if (!seatsByProfile.has(s.assigned_to)) seatsByProfile.set(s.assigned_to, []);
+        seatsByProfile.get(s.assigned_to)!.push(s.id);
+      });
+
+      const rows: any[] = [];
+      for (const profileId of profileIds) {
+        const profileSeats = seatsByProfile.get(profileId) || [];
+        if (profileSeats.length === 0) {
+          rows.push({
+            profile_id: profileId,
+            synagogue_id: synagogueId!,
+            shabbat_date: shabbatDate,
+            marked_by: myProfileId,
+          });
+        } else {
+          for (const seatId of profileSeats) {
+            rows.push({
+              profile_id: profileId,
+              synagogue_id: synagogueId!,
+              shabbat_date: shabbatDate,
+              marked_by: myProfileId,
+              seat_id: seatId,
+            });
+          }
+        }
+      }
+
+      if (rows.length === 0) return 0;
+      const { error } = await supabase.from("absences").insert(rows);
+      if (error) throw error;
+      return profileIds.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
+      setMarkForOtherOpen(false);
+      setSelectedMemberIds(new Set());
+      setMemberSearch("");
+      toast({ title: `סומנה היעדרות ל-${count} מתפללים` });
     },
     onError: (e: Error) => {
       toast({ title: "שגיאה", description: e.message, variant: "destructive" });
