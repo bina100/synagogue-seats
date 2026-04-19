@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.update-seating-map]
 verify_jwt = false
+
+[functions.yemot-ivr]
+verify_jwt = false
