@@ -14,15 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-} from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Armchair,
   CalendarOff,
@@ -32,7 +25,7 @@ import {
   XCircle,
   MinusCircle,
   Star,
-  ChevronsUpDown,
+  Search,
 } from "lucide-react";
 import { getNextShabbat, getUpcomingShabbats, getUpcomingHolidays, formatHebrewDate, getShabbatLabel, formatHebrewDateOnly } from "@/lib/hebrewDates";
 
