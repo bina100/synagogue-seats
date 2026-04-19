@@ -57,8 +57,8 @@ export default function AbsenceManager() {
   const shabbatDate = selectedDate;
 
   const [markForOtherOpen, setMarkForOtherOpen] = useState(false);
-  const [selectedMemberId, setSelectedMemberId] = useState("");
-  const [memberSearchOpen, setMemberSearchOpen] = useState(false);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
+  const [memberSearch, setMemberSearch] = useState("");
   const [selectedSeat, setSelectedSeat] = useState<any>(null);
 
   const isGabbai = isSuperAdmin || roles.some((r) => r.role === "gabbai" && r.synagogue_id === synagogueId);
