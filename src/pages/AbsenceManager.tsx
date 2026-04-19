@@ -14,15 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-} from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Armchair,
   CalendarOff,
@@ -32,7 +25,7 @@ import {
   XCircle,
   MinusCircle,
   Star,
-  ChevronsUpDown,
+  Search,
 } from "lucide-react";
 import { getNextShabbat, getUpcomingShabbats, getUpcomingHolidays, formatHebrewDate, getShabbatLabel, formatHebrewDateOnly } from "@/lib/hebrewDates";
 
@@ -64,8 +57,8 @@ export default function AbsenceManager() {
   const shabbatDate = selectedDate;
 
   const [markForOtherOpen, setMarkForOtherOpen] = useState(false);
-  const [selectedMemberId, setSelectedMemberId] = useState("");
-  const [memberSearchOpen, setMemberSearchOpen] = useState(false);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
+  const [memberSearch, setMemberSearch] = useState("");
   const [selectedSeat, setSelectedSeat] = useState<any>(null);
 
   const isGabbai = isSuperAdmin || roles.some((r) => r.role === "gabbai" && r.synagogue_id === synagogueId);
@@ -228,9 +221,69 @@ export default function AbsenceManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
-      setMarkForOtherOpen(false);
-      setSelectedMemberId("");
       toast({ title: "היעדרות סומנה בהצלחה" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    },
+  });
+
+  // Gabbai: bulk mark multiple members absent
+  const markMultipleAbsentMutation = useMutation({
+    mutationFn: async (profileIds: string[]) => {
+      const { data: seatRows } = await supabase
+        .from("seat_rows")
+        .select("id, sections!inner(synagogue_id)")
+        .eq("sections.synagogue_id", synagogueId!);
+
+      const rowIds = seatRows?.map((r: any) => r.id) || [];
+
+      const { data: seats } = await supabase
+        .from("seats")
+        .select("id, assigned_to")
+        .in("row_id", rowIds)
+        .in("assigned_to", profileIds);
+
+      const seatsByProfile = new Map<string, string[]>();
+      (seats || []).forEach((s: any) => {
+        if (!seatsByProfile.has(s.assigned_to)) seatsByProfile.set(s.assigned_to, []);
+        seatsByProfile.get(s.assigned_to)!.push(s.id);
+      });
+
+      const rows: any[] = [];
+      for (const profileId of profileIds) {
+        const profileSeats = seatsByProfile.get(profileId) || [];
+        if (profileSeats.length === 0) {
+          rows.push({
+            profile_id: profileId,
+            synagogue_id: synagogueId!,
+            shabbat_date: shabbatDate,
+            marked_by: myProfileId,
+          });
+        } else {
+          for (const seatId of profileSeats) {
+            rows.push({
+              profile_id: profileId,
+              synagogue_id: synagogueId!,
+              shabbat_date: shabbatDate,
+              marked_by: myProfileId,
+              seat_id: seatId,
+            });
+          }
+        }
+      }
+
+      if (rows.length === 0) return 0;
+      const { error } = await supabase.from("absences").insert(rows);
+      if (error) throw error;
+      return profileIds.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["absences", synagogueId, shabbatDate] });
+      setMarkForOtherOpen(false);
+      setSelectedMemberIds(new Set());
+      setMemberSearch("");
+      toast({ title: `סומנה היעדרות ל-${count} מתפללים` });
     },
     onError: (e: Error) => {
       toast({ title: "שגיאה", description: e.message, variant: "destructive" });
@@ -358,59 +411,164 @@ export default function AbsenceManager() {
         )}
 
         {/* Mark for other dialog */}
-        <Dialog open={markForOtherOpen} onOpenChange={setMarkForOtherOpen}>
-          <DialogContent dir="rtl" className="text-right">
+        <Dialog
+          open={markForOtherOpen}
+          onOpenChange={(open) => {
+            setMarkForOtherOpen(open);
+            if (!open) {
+              setSelectedMemberIds(new Set());
+              setMemberSearch("");
+            }
+          }}
+        >
+          <DialogContent dir="rtl" className="text-right flex flex-col max-h-[85vh] gap-3">
             <DialogHeader>
-              <DialogTitle>סמן היעדרות למתפלל</DialogTitle>
+              <DialogTitle>סמן היעדרות למתפללים</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <Popover open={memberSearchOpen} onOpenChange={setMemberSearchOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={memberSearchOpen}
-                    className="w-full justify-between"
-                  >
-                    {selectedMemberId
-                      ? members?.find((m) => (m.profiles as any)?.id === selectedMemberId)?.profiles?.full_name || "בחר מתפלל..."
-                      : "בחר מתפלל..."}
-                    <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0" dir="rtl">
-                  <Command>
-                    <CommandInput placeholder="חפש מתפלל..." />
-                    <CommandList>
-                      <CommandEmpty>לא נמצאו תוצאות</CommandEmpty>
-                      <CommandGroup>
-                        {members
-                          ?.filter((m) => !absentProfileIds.has((m.profiles as any)?.id))
-                          .map((m) => (
-                            <CommandItem
-                              key={(m.profiles as any)?.id}
-                              value={`${(m.profiles as any)?.full_name} ${(m.profiles as any)?.username}`}
-                              onSelect={() => {
-                                setSelectedMemberId((m.profiles as any)?.id || "");
-                                setMemberSearchOpen(false);
-                              }}
-                            >
-                              {(m.profiles as any)?.full_name} ({(m.profiles as any)?.username})
-                            </CommandItem>
-                          ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <Button
-                className="w-full"
-                disabled={!selectedMemberId || markOtherAbsentMutation.isPending}
-                onClick={() => markOtherAbsentMutation.mutate(selectedMemberId)}
-              >
-                {markOtherAbsentMutation.isPending ? "מסמן..." : "סמן כלא מגיע"}
-              </Button>
+
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="חפש מתפלל..."
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                className="pr-9"
+              />
             </div>
+
+            {/* Selection summary + actions */}
+            {(() => {
+              const availableMembers = (members || []).filter(
+                (m) => !absentProfileIds.has((m.profiles as any)?.id)
+              );
+              const search = memberSearch.trim().toLowerCase();
+              const filteredMembers = availableMembers.filter((m) => {
+                if (!search) return true;
+                const p = m.profiles as any;
+                return (
+                  (p?.full_name || "").toLowerCase().includes(search) ||
+                  (p?.username || "").toLowerCase().includes(search)
+                );
+              });
+
+              const allFilteredSelected =
+                filteredMembers.length > 0 &&
+                filteredMembers.every((m) =>
+                  selectedMemberIds.has((m.profiles as any)?.id)
+                );
+
+              const toggleId = (id: string) => {
+                setSelectedMemberIds((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  return next;
+                });
+              };
+
+              return (
+                <>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      נבחרו {selectedMemberIds.size}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedMemberIds((prev) => {
+                            const next = new Set(prev);
+                            if (allFilteredSelected) {
+                              filteredMembers.forEach((m) =>
+                                next.delete((m.profiles as any)?.id)
+                              );
+                            } else {
+                              filteredMembers.forEach((m) => {
+                                const id = (m.profiles as any)?.id;
+                                if (id) next.add(id);
+                              });
+                            }
+                            return next;
+                          });
+                        }}
+                      >
+                        {allFilteredSelected ? "בטל בחירה" : "בחר הכל"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedMemberIds(new Set())}
+                        disabled={selectedMemberIds.size === 0}
+                      >
+                        נקה
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Scrollable list */}
+                  <div
+                    className="flex-1 min-h-0 overflow-y-auto border rounded-md"
+                    style={{ maxHeight: "50vh", overscrollBehavior: "contain" }}
+                  >
+                    {filteredMembers.length === 0 ? (
+                      <p className="p-4 text-center text-sm text-muted-foreground">
+                        לא נמצאו תוצאות
+                      </p>
+                    ) : (
+                      <ul className="divide-y">
+                        {filteredMembers.map((m) => {
+                          const p = m.profiles as any;
+                          const id = p?.id;
+                          if (!id) return null;
+                          const checked = selectedMemberIds.has(id);
+                          return (
+                            <li
+                              key={id}
+                              role="button"
+                              onClick={() => toggleId(id)}
+                              className="flex items-center gap-3 p-3 cursor-pointer hover:bg-accent active:bg-accent/70 min-h-[44px]"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={() => toggleId(id)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium truncate">
+                                  {p?.full_name}
+                                </div>
+                                <div className="text-xs text-muted-foreground truncate">
+                                  {p?.username}
+                                </div>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    disabled={
+                      selectedMemberIds.size === 0 ||
+                      markMultipleAbsentMutation.isPending
+                    }
+                    onClick={() =>
+                      markMultipleAbsentMutation.mutate(Array.from(selectedMemberIds))
+                    }
+                  >
+                    {markMultipleAbsentMutation.isPending
+                      ? "מסמן..."
+                      : `סמן היעדרות ל-${selectedMemberIds.size} מתפללים`}
+                  </Button>
+                </>
+              );
+            })()}
           </DialogContent>
         </Dialog>
 
