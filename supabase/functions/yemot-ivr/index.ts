@@ -70,8 +70,9 @@ function speakAndHangup(text: string): string {
 /** Build a Yemot response that speaks a prompt and reads a single digit into ApiExtension. */
 function readDigit(prompt: string): string {
   const safe = prompt.replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
-  // read=<prompt-type-and-text>,<max-digits>,<var-name>,<allow-empty>,<min-digits>,<timeout-sec>
-  return `read=t-${safe},1,extension,yes,,7`;
+  // Yemot syntax: read=t-<text>,<var-name>,<play-beep>,<max-digits>,<min-digits>,<timeout-sec>
+  // Var name MUST be ApiExtension so Yemot returns it under that name on the next hit.
+  return `read=t-${safe},ApiExtension,yes,1,1,7`;
 }
 
 function yemotResponse(body: string): Response {
