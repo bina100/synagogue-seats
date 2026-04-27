@@ -72,7 +72,10 @@ function readDigit(prompt: string): string {
   const safe = prompt.replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
   // Yemot syntax: read=t-<text>,<var-name>,<play-beep>,<max-digits>,<min-digits>,<timeout-sec>
   // Var name MUST be ApiExtension so Yemot returns it under that name on the next hit.
-  return `read=t-${safe},ApiExtension,yes,1,1,7`;
+  // CRITICAL: Yemot requires the response to start with `id_list_message=` (even if empty),
+  // otherwise the system rejects it with "extension cannot be operated".
+  // Beep is set to `no` for max compatibility across Yemot account types.
+  return `id_list_message=&read=t-${safe},ApiExtension,no,1,1,7`;
 }
 
 function yemotResponse(body: string): Response {
