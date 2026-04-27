@@ -1078,7 +1078,7 @@ export default function SeatingMap() {
         open={!!editSeat}
         onOpenChange={(o) => { if (!o) setEditSeat(null); }}
         seat={editSeat}
-        members={members || []}
+        members={membersForAssignment}
         onAssign={editAssignSeat}
         onDelete={editDeleteSeat}
         onToggleBlocked={editToggleBlocked}
