@@ -147,6 +147,27 @@ export default function SeatingMap() {
 
   const absentSeatIds = new Set((myAbsences ?? []).map(a => a.seat_id).filter(Boolean));
 
+  // Include current super_admin in member list (for seat assignment) even if not a synagogue member
+  const membersForAssignment = useMemo(() => {
+    const base = members || [];
+    if (!isSuperAdmin || !profile) return base;
+    const alreadyIncluded = base.some((m: any) => m.profiles?.id === profile.id);
+    if (alreadyIncluded) return base;
+    return [
+      ...base,
+      {
+        id: `super-admin-${profile.id}`,
+        profile_id: profile.id,
+        synagogue_id: synagogueId,
+        profiles: {
+          id: profile.id,
+          full_name: `${profile.full_name} (מנהל ראשי)`,
+          username: profile.username,
+        },
+      },
+    ];
+  }, [members, isSuperAdmin, profile, synagogueId]);
+
   const { data: allAbsences } = useQuery({
     queryKey: ["absences", synagogueId, nextShabbat],
     queryFn: async () => {
