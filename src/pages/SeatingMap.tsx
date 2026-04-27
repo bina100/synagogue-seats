@@ -980,7 +980,7 @@ export default function SeatingMap() {
                                     <SeatCell
                                       key={seat.id}
                                       seat={seat}
-                                      members={members || []}
+                                      members={membersForAssignment}
                                       canManage={canManage}
                                       onAssign={handleAssign}
                                       currentUserProfileId={profile?.id}
